@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -12,11 +13,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
+$redirect_page = $_POST['redirect_page'] ?? 'admin_dashboard.php';
+if (!in_array($redirect_page, ['admin_dashboard.php', 'admin_withdrawals.php'], true)) {
+    $redirect_page = 'admin_dashboard.php';
+}
+
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    header("Location: {$redirect_page}?error=Invalid session token");
+    exit();
+}
+
 $withdrawal_id = (int)($_POST['withdrawal_id'] ?? 0);
 $decision = $_POST['decision'] ?? '';
 
 if ($withdrawal_id <= 0 || !in_array($decision, ['approve', 'reject'], true)) {
-    header("Location: admin_dashboard.php?error=Invalid request");
+    header("Location: {$redirect_page}?error=Invalid request");
     exit();
 }
 
@@ -46,13 +57,13 @@ try {
     }
 
     $pdo->commit();
-    header("Location: admin_dashboard.php?success=Withdrawal request updated");
+    header("Location: {$redirect_page}?success=Withdrawal request updated");
     exit();
 } catch (Exception $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    header("Location: admin_dashboard.php?error=" . urlencode($e->getMessage()));
+    header("Location: {$redirect_page}?error=" . urlencode($e->getMessage()));
     exit();
 }
 ?>

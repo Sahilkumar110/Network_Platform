@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -9,11 +10,15 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 // 1. Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $success = "Invalid session token. Please refresh and try again.";
+    } else {
     foreach ($_POST['settings'] as $key => $value) {
         $stmt = $pdo->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = ?");
         $stmt->execute([$value, $key]);
     }
     $success = "Settings updated successfully!";
+    }
 }
 
 // 2. Fetch All Settings
@@ -41,6 +46,7 @@ $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <?php if(isset($success)) echo "<p style='color: green;'>$success</p>"; ?>
     
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
         <div class="form-group">
             <label>Platform Name</label>
             <input type="text" name="settings[site_name]" value="<?php echo htmlspecialchars($settings['site_name']); ?>">

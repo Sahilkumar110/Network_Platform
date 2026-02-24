@@ -1,4 +1,15 @@
 <?php
+function csrfToken() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verifyCsrfToken($token) {
+    return isset($_SESSION['csrf_token']) && is_string($token) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
 function getReferralCountAtLevel($pdo, $root_user_id, $target_level) {
     $current_ids = [(int)$root_user_id];
     for ($level = 1; $level <= (int)$target_level; $level++) {

@@ -9,6 +9,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        header("Location: admin_dashboard.php?error=Invalid session token");
+        exit();
+    }
     $user_id = (int)$_POST['user_id'];
     $amount = (float)$_POST['amount'];
     $action = $_POST['action'];

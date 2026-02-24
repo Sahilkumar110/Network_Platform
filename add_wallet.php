@@ -12,6 +12,9 @@ $user_id = (int)$_SESSION['user_id'];
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = ["type" => "error", "text" => "Invalid session token. Please refresh and try again."];
+    } else {
     $amount = (float)$_POST['amount'];
 
     if ($amount <= 0) {
@@ -37,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->rollBack();
             $message = ["type" => "error", "text" => "System error: " . $e->getMessage()];
         }
+    }
     }
 }
 
@@ -82,6 +86,7 @@ $user = $stmt->fetch();
             <?php endif; ?>
 
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
                 <label for="amount">Amount ($)</label>
                 <input id="amount" type="number" name="amount" step="0.01" min="0.01" placeholder="Enter amount" required>
                 <button type="submit">Add to Wallet</button>

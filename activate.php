@@ -12,6 +12,9 @@ $user_id = $_SESSION['user_id'];
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = "<p style='color:red;'>Invalid session token. Please refresh and try again.</p>";
+    } else {
     $amount = (float)$_POST['amount'];
 
     if ($amount >= 100) {
@@ -23,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     } else {
         $message = "<p style='color:red;'>Minimum activation amount is $100.</p>";
+    }
     }
 }
 ?>
@@ -42,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <h2>Activate Investment</h2>
         <?php echo $message; ?>
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
             <label>Investment Amount ($):</label>
             <input type="number" name="amount" placeholder="e.g. 1000" required>
             <button type="submit">Pay & Activate</button>

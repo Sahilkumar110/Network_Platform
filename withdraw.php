@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -16,6 +17,9 @@ $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = ["type" => "error", "text" => "Invalid session token. Please refresh and try again."];
+    } else {
     $amount = (float)$_POST['amount'];
     $min_balance_required = 200;
     
@@ -68,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $pdo->rollBack();
             $message = ["type" => "error", "text" => "System Error: " . $e->getMessage()];
         }
+    }
     }
 }
 
@@ -144,6 +149,7 @@ $withdrawals = $history_stmt->fetchAll();
         </div>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
             <label style="display:block; text-align:left; font-size:13px; font-weight:600; margin-bottom:5px;">Amount to Withdraw ($)</label>
             <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
             <button type="submit">Submit Withdrawal Request</button>

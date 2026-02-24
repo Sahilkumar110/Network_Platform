@@ -8,6 +8,9 @@ if (!isset($_SESSION['user_id'])) { die("Please login first."); }
 $message = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = "Invalid session token. Please refresh and try again.";
+    } else {
     $user_id = $_SESSION['user_id'];
     $amount = (float)$_POST['amount'];
 
@@ -21,10 +24,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         $message = "Minimum investment is $100.";
     }
+    }
 }
 ?>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
     <h2>Invest Money</h2>
     <p>Enter amount to invest (this will trigger bonuses for your referrers):</p>
     <input type="number" name="amount" placeholder="Amount (e.g. 1000)" required>

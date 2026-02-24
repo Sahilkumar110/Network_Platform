@@ -1,10 +1,14 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 $error_message = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error_message = "Invalid session token. Please refresh and try again.";
+    } else {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
     $mode = $_POST['mode']; 
@@ -36,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     } else {
         $error_message = "Invalid email or password.";
+    }
     }
 }
 ?>
@@ -128,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php endif; ?>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
         <div class="mode-selector">
             <label>
                 <input type="radio" name="mode" value="user" checked>

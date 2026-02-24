@@ -7,6 +7,9 @@ $error = "";
 $success = "";
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = "Invalid session token. Please refresh and try again.";
+    } else {
     $username = htmlspecialchars($_POST['username']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
@@ -30,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         } else {
             $error = "Something went wrong. Please try again.";
         }
+    }
     }
 }
 ?>
@@ -109,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php endif; ?>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
         <div class="form-group">
             <label>Username</label>
             <input type="text" name="username" placeholder="johndoe123" required>

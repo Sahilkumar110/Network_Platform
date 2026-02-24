@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 // 1. SECURITY CHECK: Make sure ONLY admins can stay here
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
@@ -332,6 +333,7 @@ $users = $stmt_users->fetchAll();
                 <span class="role-badge admin-bg">ADMIN MODE</span>
                 <span class="user-email">ID: #<?php echo $_SESSION['user_id']; ?></span>
             </div>
+            <a href="admin_withdrawals.php" class="logout-btn" style="background:#0f766e;">Withdrawals</a>
             <a href="dashboard.php" class="logout-btn" style="background:#1e3a8a;">User Dashboard</a>
             <a href="logout.php" class="logout-btn">Logout</a>
             <details class="profile-menu">
@@ -390,6 +392,7 @@ $users = $stmt_users->fetchAll();
             <th>ID</th>
             <th>Username</th>
             <th>Email</th>
+            <th>Referral Source</th>
             <th>Role</th>
             <th>Status</th>
             <th>Balance</th>
@@ -402,6 +405,13 @@ $users = $stmt_users->fetchAll();
             <td><?php echo $u['id']; ?></td>
             <td><?php echo htmlspecialchars($u['username']); ?></td>
             <td><?php echo htmlspecialchars($u['email']); ?></td>
+            <td>
+                <?php if (!empty($u['referrer_id'])): ?>
+                    User ID #<?php echo (int)$u['referrer_id']; ?>
+                <?php else: ?>
+                    Normal Signup
+                <?php endif; ?>
+            </td>
             <td class="<?php echo $u['role'] == 'admin' ? 'status-admin' : ''; ?>">
                 <?php echo strtoupper($u['role']); ?>
             </td>
@@ -411,6 +421,7 @@ $users = $stmt_users->fetchAll();
             <td>
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     <form action="update_balance.php" method="POST" style="display: flex; gap: 5px;">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
                         <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
                         <input type="number" name="amount" step="0.01" placeholder="0.00" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;" required>
                         <button type="submit" name="action" value="add" class="btn-add">+</button>
@@ -473,6 +484,7 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
                         <td><?php echo htmlspecialchars($w['details']); ?></td>
                         <td>
                             <form action="handle_withdrawal.php" method="POST" style="display:flex; gap:6px;">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
                                 <input type="hidden" name="withdrawal_id" value="<?php echo (int)$w['id']; ?>">
                                 <button type="submit" name="decision" value="approve" class="btn-add">Approve</button>
                                 <button type="submit" name="decision" value="reject" class="btn-sub">Reject</button>
