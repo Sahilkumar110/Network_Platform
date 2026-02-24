@@ -1,0 +1,355 @@
+<?php
+session_start();
+include 'db.php';
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id']; 
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch();
+
+$stmt_ref = $pdo->prepare("SELECT username, investment_amount FROM users WHERE referrer_id = ?");
+$stmt_ref->execute([$user_id]);
+$my_referrals = $stmt_ref->fetchAll();
+
+$base_url = "http://localhost/network_platform/register.php?ref=";
+$referral_link = $base_url . $user['id'];
+
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard | Network Platform</title>
+    <style>
+        /* Modern Theme Variables */
+        :root {
+            --primary: #1e3a8a;
+            --secondary: #3b82f6;
+            --bg: #f8fafc;
+            --text-dark: #1e293b;
+            --text-light: #64748b;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            color: var(--text-dark);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Nav Header same as Admin */
+        .main-header {
+            background: #ffffff;
+            padding: 0 20px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -1px; }
+        .logo span { color: var(--secondary); font-weight: 400; }
+
+        .nav-right { display: flex; align-items: center; gap: 20px; }
+        .user-info { text-align: right; }
+        .role-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; margin-bottom: 2px; display: inline-block; }
+        .user-bg { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+        .user-email { font-size: 13px; color: var(--text-light); display: block; }
+
+        .logout-btn {
+            display: flex; align-items: center; gap: 8px; background: var(--danger);
+            color: white; text-decoration: none; padding: 10px 18px; border-radius: 8px;
+            font-weight: 600; font-size: 14px; transition: 0.3s;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border-top: 4px solid var(--primary);
+        }
+
+        .card h3 { 
+            margin: 0; 
+            color: var(--text-light); 
+            font-size: 13px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em;
+        }
+
+        .balance { 
+            font-size: 32px; 
+            color: var(--text-dark); 
+            font-weight: 800; 
+            margin: 10px 0;
+        }
+
+        /* Referral Box Styling */
+        .ref-box { 
+            background: #f1f5f9; 
+            padding: 15px; 
+            border: 1px dashed var(--secondary); 
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+        }
+
+        code { font-family: monospace; color: var(--primary); font-weight: bold; font-size: 14px; }
+
+        .copy-btn {
+            background: var(--secondary);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Table/List Styling */
+        .ref-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ref-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .ref-item:last-child { border: none; }
+
+        .btn-withdraw {
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+            padding: 12px;
+            background: var(--success);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        .btn-disabled {
+            background: #e2e8f0;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        /* Updated Withdrawal Card Styles */
+.withdraw-status-container {
+    margin-top: 15px;
+}
+
+.btn-withdraw {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.btn-active {
+    background: var(--success);
+    color: white;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.btn-active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-locked {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+    border: 1px solid #e2e8f0;
+}
+
+/* Progress Bar for Motivation */
+.progress-container {
+    background: #e2e8f0;
+    border-radius: 10px;
+    height: 8px;
+    width: 100%;
+    margin: 15px 0 8px 0;
+    overflow: hidden;
+}
+
+.progress-fill {
+    background: var(--secondary);
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+.needed-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--danger);
+    display: flex;
+    justify-content: space-between;
+}
+    </style>
+</head>
+<body>
+
+<header class="main-header">
+    <div class="nav-container">
+        <div class="logo">NETWORK<span>PLATFORM</span></div>
+        <div class="nav-right">
+            <div class="user-info">
+                <span class="role-badge user-bg">USER MODE</span>
+                <span class="user-email">ID: #<?php echo $user['id']; ?></span>
+            </div>
+            <a href="logout.php" class="logout-btn">Logout</a>
+        </div>
+    </div>
+</header>
+
+<div class="container">
+    <h1 style="margin-bottom: 30px;">Welcome back, <?php echo htmlspecialchars($user['username']); ?>!</h1>
+
+    <div class="stats-grid">
+        <div class="card">
+            <h3>Wallet Balance</h3>
+            <div class="balance">$<?php echo number_format($user['wallet_balance'], 2); ?></div>
+            <p style="margin: 0; font-size: 14px; color: var(--text-light);">
+                Rank: <strong style="color: var(--secondary);"><?php echo $user['user_rank']; ?></strong>
+            </p>
+        </div>
+
+       <div class="card" style="border-top-color: var(--success);">
+    <h3>Withdraw Funds</h3>
+    
+    <?php 
+        $threshold = 200;
+        $current_balance = $user['wallet_balance'];
+        $percentage = ($current_balance / $threshold) * 100;
+        if($percentage > 100) $percentage = 100; // Cap at 100%
+    ?>
+
+    <div class="balance" style="font-size: 24px; margin: 15px 0 5px 0;">
+        $<?php echo number_format($current_balance, 2); ?> 
+        <span style="font-size: 14px; color: var(--text-light); font-weight: normal;">/ $<?php echo $threshold; ?></span>
+    </div>
+
+    <div class="progress-container">
+        <div class="progress-fill" style="width: <?php echo $percentage; ?>%;"></div>
+    </div>
+
+    <div class="withdraw-status-container">
+        <?php if ($current_balance >= $threshold): ?>
+            <a href="withdraw.php" class="btn-withdraw btn-active">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M11 11.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-1.071l-2.646 2.647a.5.5 0 0 1-.708-.708L12.293 12h-1.071a.5.5 0 0 1-.5-.5z"/>
+                    <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                </svg>
+                Withdraw Funds
+            </a>
+        <?php else: ?>
+            <button class="btn-withdraw btn-locked" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                </svg>
+                Balance Locked
+            </button>
+            <div class="needed-text">
+                <span>Min: $<?php echo $threshold; ?></span>
+                <span>Need $<?php echo number_format($threshold - $current_balance, 2); ?> more</span>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+        <div class="card" style="border-top-color: var(--secondary);">
+            <h3>Your Team (Level 1)</h3>
+            <div class="balance"><?php echo count($my_referrals); ?> <span style="font-size: 14px; font-weight: normal; color: var(--text-light);">Members</span></div>
+            <a href="referrals.php" style="color: var(--secondary); font-size: 14px; font-weight: 600; text-decoration: none;">View Full Tree →</a>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="card" style="grid-column: span 2;">
+            <h3>Referral Program</h3>
+            <p style="color: var(--text-light); font-size: 14px;">Invite your friends and earn commissions across 5 levels.</p>
+            <div class="ref-box">
+                <code><?php echo $referral_link; ?></code>
+                <button class="copy-btn" onclick="copyLink('<?php echo $referral_link; ?>')">Copy Link</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Recent Directs</h3>
+            <div class="ref-list">
+                <?php if (empty($my_referrals)): ?>
+                    <p style="color: var(--text-light); font-size: 13px; margin-top: 15px;">No referrals yet.</p>
+                <?php else: ?>
+                    <?php foreach (array_slice($my_referrals, 0, 3) as $ref): ?>
+                        <div class="ref-item">
+                            <span style="font-weight: 600;"><?php echo htmlspecialchars($ref['username']); ?></span>
+                            <span style="color: var(--success); font-weight: bold;">$<?php echo number_format($ref['investment_amount'], 2); ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyLink(text) {
+        navigator.clipboard.writeText(text);
+        alert("Referral link copied to clipboard!");
+    }
+</script>
+
+</body>
+</html>
