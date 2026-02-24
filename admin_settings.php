@@ -2,7 +2,10 @@
 session_start();
 include 'db.php';
 
-if ($_SESSION['role'] !== 'admin') { die("Unauthorized"); }
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header("Location: login.php");
+    exit();
+}
 
 // 1. Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

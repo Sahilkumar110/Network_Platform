@@ -7,6 +7,11 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit("Access Denied: You must be an Admin.");
 }
+
+$stmt_admin_user = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance FROM users WHERE id = ?");
+$stmt_admin_user->execute([$_SESSION['user_id']]);
+$admin_user = $stmt_admin_user->fetch();
+$admin_avatar_initial = strtoupper(substr((string)($admin_user['username'] ?? 'A'), 0, 1));
 // Calculate Global Stats
 try {
     // Total Users
@@ -153,6 +158,21 @@ $users = $stmt_users->fetchAll();
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
+.profile-menu { position: relative; }
+.profile-menu summary { list-style: none; cursor: pointer; }
+.profile-menu summary::-webkit-details-marker { display: none; }
+.profile-trigger {
+    width: 40px; height: 40px; border-radius: 999px; border: 2px solid #dbeafe;
+    background: #1e3a8a; color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+}
+.profile-card {
+    position: absolute; right: 0; top: 46px; width: 240px; background: white;
+    border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+    padding: 12px; z-index: 1200; color: #1e293b;
+}
+.profile-row { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+.profile-row strong { color: #0f172a; font-size: 13px; }
 .search-form {
     display: flex;
     background: #f1f5f9;
@@ -311,7 +331,19 @@ $users = $stmt_users->fetchAll();
                 <span class="role-badge admin-bg">ADMIN MODE</span>
                 <span class="user-email">ID: #<?php echo $_SESSION['user_id']; ?></span>
             </div>
+            <a href="dashboard.php" class="logout-btn" style="background:#1e3a8a;">User Dashboard</a>
             <a href="logout.php" class="logout-btn">Logout</a>
+            <details class="profile-menu">
+                <summary class="profile-trigger"><?php echo htmlspecialchars($admin_avatar_initial); ?></summary>
+                <div class="profile-card">
+                    <div class="profile-row"><strong><?php echo htmlspecialchars($admin_user['username'] ?? 'Admin'); ?></strong></div>
+                    <div class="profile-row"><?php echo htmlspecialchars($admin_user['email'] ?? ''); ?></div>
+                    <div class="profile-row">Role: <?php echo htmlspecialchars($admin_user['role'] ?? 'admin'); ?></div>
+                    <div class="profile-row">Rank: <?php echo htmlspecialchars($admin_user['user_rank'] ?? 'Basic'); ?></div>
+                    <div class="profile-row">Wallet: $<?php echo number_format((float)($admin_user['wallet_balance'] ?? 0), 2); ?></div>
+                    <div class="profile-row">User ID: #<?php echo (int)($_SESSION['user_id']); ?></div>
+                </div>
+            </details>
         </div>
     </div>
 </header>
@@ -347,6 +379,9 @@ $users = $stmt_users->fetchAll();
     <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success"><?php echo htmlspecialchars($_GET['success']); ?></div>
 <?php endif; ?>
+    <?php if (isset($_GET['error'])): ?>
+    <div class="alert" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;"><?php echo htmlspecialchars($_GET['error']); ?></div>
+<?php endif; ?>
 
     <h3>User List</h3>
     <table>
@@ -355,8 +390,10 @@ $users = $stmt_users->fetchAll();
             <th>Username</th>
             <th>Email</th>
             <th>Role</th>
+            <th>Status</th>
             <th>Balance</th>
             <th>Invested</th>
+            <th>Actions</th>
         </tr>
         <?php foreach ($users as $u): ?>
        
@@ -367,22 +404,25 @@ $users = $stmt_users->fetchAll();
             <td class="<?php echo $u['role'] == 'admin' ? 'status-admin' : ''; ?>">
                 <?php echo strtoupper($u['role']); ?>
             </td>
+            <td><?php echo strtoupper($u['status']); ?></td>
             <td>$<?php echo number_format($u['wallet_balance'], 2); ?></td>
             <td>$<?php echo number_format($u['investment_amount'], 2); ?></td>
+            <td>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <form action="update_balance.php" method="POST" style="display: flex; gap: 5px;">
+                        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                        <input type="number" name="amount" step="0.01" placeholder="0.00" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;" required>
+                        <button type="submit" name="action" value="add" class="btn-add">+</button>
+                        <button type="submit" name="action" value="subtract" class="btn-sub">-</button>
+                    </form>
+                    <?php if ($u['role'] !== 'admin'): ?>
+                        <a href="toggle_status.php?id=<?php echo $u['id']; ?>" class="btn-status <?php echo $u['status'] === 'active' ? 'btn-ban' : 'btn-unban'; ?>">
+                            <?php echo $u['status'] === 'active' ? 'Ban User' : 'Unban User'; ?>
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </td>
         </tr>
-
-        
-        <th>Actions</th>
-
-<td>
-    <form action="update_balance.php" method="POST" style="display: flex; gap: 5px;">
-        <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
-        <input type="number" name="amount" step="0.01" placeholder="0.00" style="width: 70px; padding: 5px; border-radius: 4px; border: 1px solid #ccc;" required>
-        
-        <button type="submit" name="action" value="add" class="btn-add">+</button>
-        <button type="submit" name="action" value="subtract" class="btn-sub">-</button>
-    </form>
-</td>
         <?php endforeach; ?>
     </table>
 <?php
@@ -394,9 +434,55 @@ $stmt_logs = $pdo->query("
     ORDER BY tl.created_at DESC LIMIT 10
 ");
 $logs = $stmt_logs->fetchAll();
+
+// Fetch pending withdrawal requests
+$stmt_withdrawals = $pdo->query("
+    SELECT w.id, w.user_id, w.amount, w.method, w.details, w.status, w.created_at, u.username, u.email
+    FROM withdrawals w
+    JOIN users u ON w.user_id = u.id
+    WHERE w.status = 'pending'
+    ORDER BY w.created_at DESC
+");
+$pending_withdrawals = $stmt_withdrawals->fetchAll();
 ?>
 
 <div style="margin-top: 50px;">
+    <h3>Pending Withdrawal Requests</h3>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Details</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($pending_withdrawals)): ?>
+                <tr><td colspan="6" style="text-align:center;">No pending withdrawals</td></tr>
+            <?php else: ?>
+                <?php foreach ($pending_withdrawals as $w): ?>
+                    <tr>
+                        <td><?php echo date('M d, Y H:i', strtotime($w['created_at'])); ?></td>
+                        <td><?php echo htmlspecialchars($w['username']) . " (" . htmlspecialchars($w['email']) . ")"; ?></td>
+                        <td>$<?php echo number_format($w['amount'], 2); ?></td>
+                        <td><?php echo htmlspecialchars($w['method']); ?></td>
+                        <td><?php echo htmlspecialchars($w['details']); ?></td>
+                        <td>
+                            <form action="handle_withdrawal.php" method="POST" style="display:flex; gap:6px;">
+                                <input type="hidden" name="withdrawal_id" value="<?php echo (int)$w['id']; ?>">
+                                <button type="submit" name="decision" value="approve" class="btn-add">Approve</button>
+                                <button type="submit" name="decision" value="reject" class="btn-sub">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
     <h3>Recent Activity Log</h3>
     <table class="log-table">
         <thead>

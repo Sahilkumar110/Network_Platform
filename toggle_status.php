@@ -2,12 +2,13 @@
 session_start();
 include 'db.php';
 
-if ($_SESSION['role'] !== 'admin') {
-    die("Unauthorized");
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    header("Location: login.php");
+    exit();
 }
 
 if (isset($_GET['id'])) {
-    $user_id = $_GET['id'];
+    $user_id = (int)$_GET['id'];
     
     // 1. Get current status
     $stmt = $pdo->prepare("SELECT status FROM users WHERE id = ?");

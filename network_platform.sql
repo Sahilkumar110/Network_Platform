@@ -24,6 +24,20 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `milestone_rewards`
+--
+
+CREATE TABLE `milestone_rewards` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `milestone_code` varchar(50) NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `settings`
 --
 
@@ -167,6 +181,13 @@ ALTER TABLE `settings`
   ADD PRIMARY KEY (`setting_key`);
 
 --
+-- Indexes for table `milestone_rewards`
+--
+ALTER TABLE `milestone_rewards`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_user_milestone` (`user_id`,`milestone_code`);
+
+--
 -- Indexes for table `transactions`
 --
 ALTER TABLE `transactions`
@@ -205,6 +226,12 @@ ALTER TABLE `transactions`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `milestone_rewards`
+--
+ALTER TABLE `milestone_rewards`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `transaction_logs`
 --
 ALTER TABLE `transaction_logs`
@@ -231,6 +258,12 @@ ALTER TABLE `withdrawals`
 --
 ALTER TABLE `transactions`
   ADD CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+
+--
+-- Constraints for table `milestone_rewards`
+--
+ALTER TABLE `milestone_rewards`
+  ADD CONSTRAINT `milestone_rewards_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
 
 --
 -- Constraints for table `users`

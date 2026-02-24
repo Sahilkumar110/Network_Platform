@@ -22,8 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt = $pdo->prepare($sql);
         
         if ($stmt->execute([$username, $email, $password, $referrer])) {
-            $new_user_id = $pdo->lastInsertId();
-            distributeCommissions($pdo, $new_user_id, 200);
+            if (!empty($referrer)) {
+                applyMilestoneBonus($pdo, $referrer);
+                updateUserRank($pdo, $referrer);
+            }
             $success = "Registration successful! <a href='login.php'>Login here</a>";
         } else {
             $error = "Something went wrong. Please try again.";

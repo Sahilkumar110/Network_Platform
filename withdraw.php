@@ -17,7 +17,7 @@ $user = $stmt->fetch();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $amount = (float)$_POST['amount'];
-    $min_withdraw = 200;
+    $min_balance_required = 200;
     
     // Check Weekly Constraint (7 days)
     $can_withdraw_date = true;
@@ -30,8 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    if ($amount < $min_withdraw) {
-        $message = ["type" => "error", "text" => "Minimum withdrawal is $$min_withdraw."];
+    if ($amount <= 0) {
+        $message = ["type" => "error", "text" => "Withdrawal amount must be greater than $0."];
+    } elseif ($user['wallet_balance'] < $min_balance_required) {
+        $message = ["type" => "error", "text" => "You need at least $$min_balance_required in wallet to request withdrawal."];
     } elseif ($amount > $user['wallet_balance']) {
         $message = ["type" => "error", "text" => "Insufficient balance in your wallet!"];
     } elseif (!$can_withdraw_date) {
@@ -40,9 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Deduct from balance immediately (Locking the funds)
-            $update = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance - ?, last_withdrawal_date = NOW() WHERE id = ?");
-            $update->execute([$amount, $user_id]);
+            // 1. Atomic deduction with balance check
+            $update = $pdo->prepare(
+                "UPDATE users
+                 SET wallet_balance = wallet_balance - ?, last_withdrawal_date = NOW()
+                 WHERE id = ? AND wallet_balance >= ?"
+            );
+            $update->execute([$amount, $user_id, $amount]);
+            if ($update->rowCount() === 0) {
+                throw new Exception("Unable to process request due to insufficient wallet balance.");
+            }
 
             // 2. Save withdrawal request in dedicated withdrawals table
             $log = $pdo->prepare("INSERT INTO withdrawals (user_id, amount, method, details, status, created_at) VALUES (?, ?, 'Wallet', 'Withdrawal request from dashboard', 'pending', NOW())");
@@ -136,7 +145,7 @@ $withdrawals = $history_stmt->fetchAll();
 
         <form method="POST">
             <label style="display:block; text-align:left; font-size:13px; font-weight:600; margin-bottom:5px;">Amount to Withdraw ($)</label>
-            <input type="number" name="amount" min="200" step="0.01" placeholder="0.00" required>
+            <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
             <button type="submit">Submit Withdrawal Request</button>
         </form>
     </div>

@@ -1,6 +1,7 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -8,15 +9,17 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id']; 
+updateUserRank($pdo, $user_id);
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
+$avatar_initial = strtoupper(substr((string)($user['username'] ?? 'U'), 0, 1));
 
 $stmt_ref = $pdo->prepare("SELECT username, investment_amount FROM users WHERE referrer_id = ?");
 $stmt_ref->execute([$user_id]);
 $my_referrals = $stmt_ref->fetchAll();
 
-$base_url = "http://localhost/network_platform/register.php?ref=";
+$base_url = "http://localhost/network_project/Network_Platform/register.php?ref=";
 $referral_link = $base_url . $user['id'];
 
 ?>
@@ -80,6 +83,7 @@ $referral_link = $base_url . $user['id'];
         .user-info { text-align: right; }
         .role-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; margin-bottom: 2px; display: inline-block; }
         .user-bg { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+        .admin-bg { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
         .user-email { font-size: 13px; color: var(--text-light); display: block; }
 
         .logout-btn {
@@ -87,6 +91,21 @@ $referral_link = $base_url . $user['id'];
             color: white; text-decoration: none; padding: 10px 18px; border-radius: 8px;
             font-weight: 600; font-size: 14px; transition: 0.3s;
         }
+        .profile-menu { position: relative; }
+        .profile-menu summary { list-style: none; cursor: pointer; }
+        .profile-menu summary::-webkit-details-marker { display: none; }
+        .profile-trigger {
+            width: 40px; height: 40px; border-radius: 999px; border: 2px solid #dbeafe;
+            background: var(--primary); color: white; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 14px;
+        }
+        .profile-card {
+            position: absolute; right: 0; top: 46px; width: 240px; background: white;
+            border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+            padding: 12px; z-index: 1200; color: var(--text-dark);
+        }
+        .profile-row { font-size: 12px; color: var(--text-light); margin-bottom: 6px; }
+        .profile-row strong { color: var(--text-dark); font-size: 13px; }
 
         /* Stats Grid */
         .stats-grid {
@@ -259,10 +278,26 @@ $referral_link = $base_url . $user['id'];
         <div class="logo">NETWORK<span>PLATFORM</span></div>
         <div class="nav-right">
             <div class="user-info">
-                <span class="role-badge user-bg">USER MODE</span>
+                <span class="role-badge <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin-bg' : 'user-bg'; ?>">
+                    <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'ADMIN USER VIEW' : 'USER MODE'; ?>
+                </span>
                 <span class="user-email">ID: #<?php echo $user['id']; ?></span>
             </div>
+            <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                <a href="admin_dashboard.php" class="logout-btn" style="background:#1e3a8a;">Admin Dashboard</a>
+            <?php endif; ?>
             <a href="logout.php" class="logout-btn">Logout</a>
+            <details class="profile-menu">
+                <summary class="profile-trigger"><?php echo htmlspecialchars($avatar_initial); ?></summary>
+                <div class="profile-card">
+                    <div class="profile-row"><strong><?php echo htmlspecialchars($user['username']); ?></strong></div>
+                    <div class="profile-row"><?php echo htmlspecialchars($user['email']); ?></div>
+                    <div class="profile-row">Role: <?php echo htmlspecialchars($user['role']); ?></div>
+                    <div class="profile-row">Rank: <?php echo htmlspecialchars($user['user_rank']); ?></div>
+                    <div class="profile-row">Wallet: $<?php echo number_format((float)$user['wallet_balance'], 2); ?></div>
+                    <div class="profile-row">User ID: #<?php echo (int)$user['id']; ?></div>
+                </div>
+            </details>
         </div>
     </div>
 </header>
@@ -277,6 +312,9 @@ $referral_link = $base_url . $user['id'];
             <p style="margin: 0; font-size: 14px; color: var(--text-light);">
                 Rank: <strong style="color: var(--secondary);"><?php echo $user['user_rank']; ?></strong>
             </p>
+            <a href="add_wallet.php" style="display:inline-block; margin-top:12px; text-decoration:none; background: var(--secondary); color:white; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">
+                Add Wallet Balance
+            </a>
         </div>
 
         <a href="withdraw.php" class="withdraw-card-link">

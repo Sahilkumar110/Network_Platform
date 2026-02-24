@@ -1,7 +1,7 @@
 <?php
 session_start();
 include 'db.php';
-include 'functions.php'; // Required for the 5-level commission logic
+include 'functions.php';
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -14,16 +14,10 @@ $message = "";
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $amount = (float)$_POST['amount'];
 
-    if ($amount >= 100) { // Let's assume minimum investment is $100
+    if ($amount >= 100) {
         try {
-            // 1. Update the user's investment amount
-            $stmt = $pdo->prepare("UPDATE users SET investment_amount = investment_amount + ? WHERE id = ?");
-            $stmt->execute([$amount, $user_id]);
-
-            // 2. TRIGGER THE COMMISSION to uplines
-            distributeCommissions($pdo, $user_id, $amount);
-
-            $message = "<p style='color:green;'>Account Activated with $$amount! Your uplines have been paid.</p>";
+            processInvestment($pdo, $user_id, $amount, 'Activation');
+            $message = "<p style='color:green;'>Account activated with $$amount. Daily 1% profit and referral bonuses are now active.</p>";
         } catch (Exception $e) {
             $message = "<p style='color:red;'>Error: " . $e->getMessage() . "</p>";
         }
@@ -32,7 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 ?>
-// hello Suneel, It also includes the logic to distribute commissions to uplines basd on the 5-level commission structure. Make sure to include the necessary functions in your functions.php file for the commission distribution to work correctly.
 <!DOCTYPE html>
 <html>
 <head>
