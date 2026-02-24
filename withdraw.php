@@ -44,8 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $update = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance - ?, last_withdrawal_date = NOW() WHERE id = ?");
             $update->execute([$amount, $user_id]);
 
-            // 2. Log transaction with PENDING status
-            $log = $pdo->prepare("INSERT INTO transactions (user_id, amount, type, description, status, created_at) VALUES (?, ?, 'withdrawal', 'Withdrawal request to bank/crypto', 'pending', NOW())");
+            // 2. Save withdrawal request in dedicated withdrawals table
+            $log = $pdo->prepare("INSERT INTO withdrawals (user_id, amount, method, details, status, created_at) VALUES (?, ?, 'Wallet', 'Withdrawal request from dashboard', 'pending', NOW())");
             $log->execute([$user_id, $amount]);
 
             $pdo->commit();
@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Fetch recent withdrawal history
-$history_stmt = $pdo->prepare("SELECT * FROM transactions WHERE user_id = ? AND type = 'withdrawal' ORDER BY created_at DESC LIMIT 5");
+// Fetch recent withdrawal history for current logged-in user only
+$history_stmt = $pdo->prepare("SELECT id, amount, status, created_at FROM withdrawals WHERE user_id = ? ORDER BY created_at DESC LIMIT 10");
 $history_stmt->execute([$user_id]);
 $withdrawals = $history_stmt->fetchAll();
 ?>

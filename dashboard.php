@@ -238,6 +238,18 @@ $referral_link = $base_url . $user['id'];
     display: flex;
     justify-content: space-between;
 }
+.withdraw-card-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+.withdraw-card-link .card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.withdraw-card-link:hover .card {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
     </style>
 </head>
 <body>
@@ -267,6 +279,7 @@ $referral_link = $base_url . $user['id'];
             </p>
         </div>
 
+        <a href="withdraw.php" class="withdraw-card-link">
        <div class="card" style="border-top-color: var(--success);">
     <h3>Withdraw Funds</h3>
     
@@ -288,13 +301,13 @@ $referral_link = $base_url . $user['id'];
 
     <div class="withdraw-status-container">
         <?php if ($current_balance >= $threshold): ?>
-            <a href="withdraw.php" class="btn-withdraw btn-active">
+            <span class="btn-withdraw btn-active">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M11 11.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-1.071l-2.646 2.647a.5.5 0 0 1-.708-.708L12.293 12h-1.071a.5.5 0 0 1-.5-.5z"/>
                     <path d="M1 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
                 </svg>
                 Withdraw Funds
-            </a>
+            </span>
         <?php else: ?>
             <button class="btn-withdraw btn-locked" disabled>
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -309,6 +322,7 @@ $referral_link = $base_url . $user['id'];
         <?php endif; ?>
     </div>
 </div>
+        </a>
         <div class="card" style="border-top-color: var(--secondary);">
             <h3>Your Team (Level 1)</h3>
             <div class="balance"><?php echo count($my_referrals); ?> <span style="font-size: 14px; font-weight: normal; color: var(--text-light);">Members</span></div>
