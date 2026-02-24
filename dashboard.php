@@ -76,7 +76,7 @@ $referral_link = $base_url . $user['id'];
             align-items: center;
         }
 
-        .logo { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -1px; }
+        .logo { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -1px; text-decoration: none; }
         .logo span { color: var(--secondary); font-weight: 400; }
 
         .nav-right { display: flex; align-items: center; gap: 20px; }
@@ -275,7 +275,7 @@ $referral_link = $base_url . $user['id'];
 
 <header class="main-header">
     <div class="nav-container">
-        <div class="logo">NETWORK<span>PLATFORM</span></div>
+        <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
         <div class="nav-right">
             <div class="user-info">
                 <span class="role-badge <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin-bg' : 'user-bg'; ?>">

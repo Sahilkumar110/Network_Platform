@@ -104,6 +104,7 @@ $users = $stmt_users->fetchAll();
     font-weight: 800;
     color: #1e3a8a;
     letter-spacing: -1px;
+    text-decoration: none;
 }
 
 .logo span {
@@ -312,9 +313,9 @@ $users = $stmt_users->fetchAll();
 <body>
 <header class="main-header">
     <div class="nav-container">
-        <div class="logo">
+        <a href="index.php" class="logo">
             NETWORK<span>PLATFORM</span>
-        </div>
+        </a>
 
         <form action="admin_dashboard.php" method="GET" class="search-form">
             <input type="text" name="search" placeholder="Search user by email or ID..." 
