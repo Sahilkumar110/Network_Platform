@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 ?>
-// hello Suneel, I have completed the activate.php file for you. This file allows users to activate their investment by entering an amount. It also includes the logic to distribute commissions to uplines based on the 5-level commission structure. Make sure to include the necessary functions in your functions.php file for the commission distribution to work correctly.
+// hello Suneel, It also includes the logic to distribute commissions to uplines based on the 5-level commission structure. Make sure to include the necessary functions in your functions.php file for the commission distribution to work correctly.
 <!DOCTYPE html>
 <html>
 <head>
