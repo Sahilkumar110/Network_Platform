@@ -284,6 +284,9 @@ $users = $stmt_users->fetchAll();
     font-weight: 700;
     text-transform: uppercase;
     transition: all 0.2s ease;
+    border: none;
+    width: 100%;
+    cursor: pointer;
 }
 
 /* Red style for Banning */
@@ -428,9 +431,13 @@ $users = $stmt_users->fetchAll();
                         <button type="submit" name="action" value="subtract" class="btn-sub">-</button>
                     </form>
                     <?php if ($u['role'] !== 'admin'): ?>
-                        <a href="toggle_status.php?id=<?php echo $u['id']; ?>" class="btn-status <?php echo $u['status'] === 'active' ? 'btn-ban' : 'btn-unban'; ?>">
-                            <?php echo $u['status'] === 'active' ? 'Ban User' : 'Unban User'; ?>
-                        </a>
+                        <form action="toggle_status.php" method="POST">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                            <input type="hidden" name="id" value="<?php echo (int)$u['id']; ?>">
+                            <button type="submit" class="btn-status <?php echo $u['status'] === 'active' ? 'btn-ban' : 'btn-unban'; ?>">
+                                <?php echo $u['status'] === 'active' ? 'Ban User' : 'Unban User'; ?>
+                            </button>
+                        </form>
                     <?php endif; ?>
                 </div>
             </td>
