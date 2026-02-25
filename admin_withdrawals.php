@@ -55,10 +55,11 @@ backfillMissingUserCodes($pdo);
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Withdrawals</title>
-    <style>
+<style>
         :root { --primary: #1e3a8a; --danger: #ef4444; --ok: #10b981; }
         body { margin: 0; background: #f1f5f9; font-family: Arial, sans-serif; color: #1e293b; }
         .header { background: #fff; border-bottom: 1px solid #e2e8f0; }
@@ -88,11 +89,13 @@ backfillMissingUserCodes($pdo);
         .alert-err { background: #fee2e2; color: #991b1b; }
         @media (max-width: 980px) { .filters { grid-template-columns: 1fr; } }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
-<body>
+<body class="admin-withdrawals">
     <div class="header">
         <div class="header-inner">
             <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
+            <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
             <div class="actions">
                 <a href="admin_dashboard.php" class="btn">Admin Dashboard</a>
                 <a href="logout.php" class="btn btn-danger">Logout</a>
@@ -109,7 +112,7 @@ backfillMissingUserCodes($pdo);
         <?php endif; ?>
 
         <div class="panel">
-            <h2 style="margin-top:0;">Withdrawal History</h2>
+            <h2 class="page-subtitle">Withdrawal History</h2>
             <form method="GET" class="filters">
                 <select name="status">
                     <option value="all" <?php echo $status === 'all' ? 'selected' : ''; ?>>All Status</option>
@@ -167,5 +170,34 @@ backfillMissingUserCodes($pdo);
             </tbody>
         </table>
     </div>
+    <script>
+        (function () {
+            var toggles = document.querySelectorAll('.mobile-nav-toggle');
+            toggles.forEach(function (btn) {
+                var header = btn.closest('.landing-header, .main-header, .header');
+                if (!header) return;
+                btn.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    var isOpen = header.classList.toggle('nav-open');
+                    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+                header.querySelectorAll('a').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        header.classList.remove('nav-open');
+                        btn.setAttribute('aria-expanded', 'false');
+                    });
+                });
+            });
+            document.addEventListener('click', function (e) {
+                toggles.forEach(function (btn) {
+                    var header = btn.closest('.landing-header, .main-header, .header');
+                    if (!header || header.contains(e.target)) return;
+                    header.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
+        })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

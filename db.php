@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/lang/bootstrap.php';
+
 $host = 'localhost';
 $db   = 'network_platform';
 $user = 'root';

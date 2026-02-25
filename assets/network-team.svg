@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 420">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e0f2fe"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="420" rx="26" fill="url(#g1)"/>
+  <g stroke="#1e3a8a" stroke-width="5" fill="none" opacity="0.8">
+    <path d="M400 95 L220 195"/>
+    <path d="M400 95 L580 195"/>
+    <path d="M220 195 L120 300"/>
+    <path d="M220 195 L320 300"/>
+    <path d="M580 195 L480 300"/>
+    <path d="M580 195 L680 300"/>
+  </g>
+  <g>
+    <circle cx="400" cy="95" r="34" fill="#1e3a8a"/>
+    <circle cx="220" cy="195" r="30" fill="#2563eb"/>
+    <circle cx="580" cy="195" r="30" fill="#2563eb"/>
+    <circle cx="120" cy="300" r="26" fill="#3b82f6"/>
+    <circle cx="320" cy="300" r="26" fill="#3b82f6"/>
+    <circle cx="480" cy="300" r="26" fill="#3b82f6"/>
+    <circle cx="680" cy="300" r="26" fill="#3b82f6"/>
+  </g>
+  <text x="64" y="82" fill="#1e3a8a" font-size="30" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Referral Network</text>
+  <text x="64" y="114" fill="#334155" font-size="18" font-family="Segoe UI, Arial, sans-serif">Build team depth and unlock levels</text>
+</svg>

@@ -65,13 +65,69 @@ $users = $stmt_users->fetchAll();
 } catch (PDOException $e) {
     die("Database Error: " . $e->getMessage());
 }
+
+$dashboard_limit = 5;
+if (!function_exists('adminDashboardLink')) {
+    function adminDashboardLink(array $updates): string {
+        $params = $_GET;
+        foreach ($updates as $key => $value) {
+            if ($value === null) {
+                unset($params[$key]);
+            } else {
+                $params[$key] = $value;
+            }
+        }
+        $query = http_build_query($params);
+        return 'admin_dashboard.php' . ($query ? ('?' . $query) : '');
+    }
+}
+
+$users_page = max(1, (int)($_GET['users_page'] ?? 1));
+$users_total = count($users);
+$users_pages = max(1, (int)ceil($users_total / $dashboard_limit));
+$users_page = min($users_page, $users_pages);
+$users_display = array_slice($users, ($users_page - 1) * $dashboard_limit, $dashboard_limit);
+
+if (!function_exists('renderAdminPager')) {
+    function renderAdminPager(string $param, int $currentPage, int $totalPages): string {
+        if ($totalPages <= 1) {
+            return '';
+        }
+
+        $start = max(1, $currentPage - 2);
+        $end = min($totalPages, $currentPage + 2);
+        $html = '<div class="section-footer"><div class="pager-nav">';
+
+        if ($currentPage > 1) {
+            $prevLink = htmlspecialchars(adminDashboardLink([$param => $currentPage - 1]));
+            $html .= '<a class="pager-btn" href="' . $prevLink . '">Prev</a>';
+        }
+
+        for ($i = $start; $i <= $end; $i++) {
+            $pageLink = htmlspecialchars(adminDashboardLink([$param => $i]));
+            $activeClass = ($i === $currentPage) ? ' pager-btn-active' : '';
+            $html .= '<a class="pager-btn' . $activeClass . '" href="' . $pageLink . '">' . $i . '</a>';
+        }
+
+        if ($currentPage < $totalPages) {
+            $nextLink = htmlspecialchars(adminDashboardLink([$param => $currentPage + 1]));
+            $html .= '<a class="pager-btn" href="' . $nextLink . '">Next</a>';
+        }
+
+        $html .= '</div></div>';
+        return $html;
+    }
+}
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <style>
+<style>
         body { font-family: Arial, sans-serif; background: #1a202c; color: white; padding: 20px; }
         .card-container { display: flex; gap: 20px; margin-bottom: 20px; }
         .card { background: #2d3748; padding: 20px; border-radius: 10px; flex: 1; border-left: 5px solid #4299e1; }
@@ -241,30 +297,63 @@ $users = $stmt_users->fetchAll();
 .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #34d399; }
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin: 25px 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0 28px;
 }
 
 .stat-card {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    border-top: 4px solid #1e3a8a;
+    position: relative;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    padding: 18px;
+    border-radius: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+}
+
+.stat-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: #1e3a8a;
+}
+
+.stat-card-members::before { background: #1e3a8a; }
+.stat-card-liability::before { background: #ef4444; }
+.stat-card-invested::before { background: #10b981; }
+.stat-card-bonus::before { background: #3b82f6; }
+
+.stat-value-positive { color: #10b981; }
+.stat-value-accent { color: #3b82f6; }
+
+@media (max-width: 1200px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 .stat-label {
     display: block;
     color: #64748b;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.04em;
     margin-bottom: 8px;
 }
 
 .stat-value {
-    font-size: 24px;
+    font-size: clamp(22px, 2.2vw, 28px);
     font-weight: 800;
     color: #1e293b;
     margin-bottom: 4px;
@@ -313,14 +402,219 @@ $users = $stmt_users->fetchAll();
     background: #22c55e;
     color: white;
 }
+.section-head {
+    margin-top: 14px;
+}
+.section-head h3 {
+    margin: 0 0 10px 0;
+}
+.section-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+.pager-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.pager-btn {
+    text-decoration: none;
+    color: #bfdbfe;
+    border: 1px solid #334155;
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 34px;
+    text-align: center;
+}
+.pager-btn:hover {
+    background: #334155;
+    color: #fff;
+}
+.pager-btn-active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: #fff;
+}
+.user-table-mobile {
+    display: none;
+}
+.user-accordion {
+    border: 1px solid #334155;
+    border-radius: 10px;
+    background: #2d3748;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+.user-accordion > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    background: #253244;
+}
+.user-accordion > summary::-webkit-details-marker {
+    display: none;
+}
+.ua-id {
+    color: #93c5fd;
+    font-size: 12px;
+}
+.ua-name {
+    color: #fff;
+    font-size: 14px;
+}
+.ua-caret {
+    color: #94a3b8;
+    font-size: 12px;
+}
+.user-accordion[open] .ua-caret {
+    transform: rotate(180deg);
+}
+.user-accordion-body {
+    padding: 10px 12px 12px;
+}
+.ua-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #3b475a;
+    color: #e2e8f0;
+    font-size: 13px;
+}
+.ua-row:last-child {
+    border-bottom: none;
+}
+.ua-row-label {
+    color: #94a3b8;
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.ua-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.ua-actions form {
+    margin: 0;
+}
+.ua-adjust-form {
+    display: grid !important;
+    grid-template-columns: 1fr auto auto;
+    gap: 6px !important;
+}
+.ua-adjust-form input[type="number"] {
+    width: 100% !important;
+    min-width: 0;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    body { padding: 12px; }
+    .main-header {
+        height: auto;
+        padding: 10px 12px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+    }
+    .nav-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .logo {
+        text-align: center;
+        display: block;
+        width: 100%;
+    }
+    .search-form {
+        width: 100%;
+    }
+    .nav-right {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 10px;
+    }
+    .user-info {
+        width: 100%;
+        text-align: center;
+        grid-column: 1 / -1;
+    }
+    .logout-btn {
+        width: 100%;
+        justify-content: center;
+        margin: 0;
+    }
+    .profile-menu {
+        grid-column: 1 / -1;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+    .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px;
+        margin: 16px 0;
+    }
+    .stat-card {
+        padding: 16px;
+    }
+    .stat-value {
+        font-size: 22px;
+    }
+    .user-table {
+        display: none;
+    }
+    .user-table-mobile {
+        display: block;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .logout-btn {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+    .ua-adjust-form {
+        grid-template-columns: 1fr;
+    }
+}
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
-<body>
+<body class="admin-dashboard">
 <header class="main-header">
     <div class="nav-container">
         <a href="index.php" class="logo">
             NETWORK<span>PLATFORM</span>
         </a>
+        <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
+        <button type="button" class="mobile-search-toggle" aria-label="Toggle search" aria-expanded="false">&#128269;</button>
 
         <form action="admin_dashboard.php" method="GET" class="search-form">
             <input type="text" name="search" placeholder="Search user by email or ID..." 
@@ -355,34 +649,7 @@ $users = $stmt_users->fetchAll();
     </div>
 </header>
 
-<div class="stats-grid">
-    <div class="stat-card">
-        <span class="stat-label">Total Members</span>
-        <div class="stat-value"><?php echo number_format($total_users); ?></div>
-        <span class="stat-sub">Registered Accounts</span>
-    </div>
-
-    <div class="stat-card">
-        <span class="stat-label">Platform Liabilities</span>
-        <div class="stat-value">$<?php echo number_format($total_platform_balance, 2); ?></div>
-        <span class="stat-sub">Total User Balances</span>
-    </div>
-
-    <div class="stat-card">
-        <span class="stat-label">Total Investments</span>
-        <div class="stat-value" style="color: #10b981;">$<?php echo number_format($total_invested, 2); ?></div>
-        <span class="stat-sub">Total Inflow</span>
-    </div>
-
-    <div class="stat-card">
-        <span class="stat-label">Bonuses Issued</span>
-        <div class="stat-value" style="color: #3b82f6;">$<?php echo number_format($total_bonuses, 2); ?></div>
-        <span class="stat-sub">Manual Adjustments</span>
-    </div>
-</div>
-
-
-    <h1>Admin Control Panel</h1>
+    <h1 class="page-title">Admin Control Panel</h1>
     <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success"><?php echo htmlspecialchars($_GET['success']); ?></div>
 <?php endif; ?>
@@ -390,8 +657,44 @@ $users = $stmt_users->fetchAll();
     <div class="alert" style="background:#fee2e2;color:#991b1b;border:1px solid #fecaca;"><?php echo htmlspecialchars($_GET['error']); ?></div>
 <?php endif; ?>
 
-    <h3>User List</h3>
-    <table>
+<div class="theme-banner theme-banner-dark">
+    <div class="theme-banner-text">
+        <h3>Admin Operations Overview</h3>
+        <p>Control investments, withdrawals, user balances, and referral-side growth from one centralized panel.</p>
+    </div>
+    <div class="theme-banner-image">
+        <img src="assets/network-team.svg" alt="Admin network operations visual">
+    </div>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card stat-card-members">
+        <span class="stat-label">Total Members</span>
+        <div class="stat-value"><?php echo number_format($total_users); ?></div>
+        <span class="stat-sub">Registered Accounts</span>
+    </div>
+
+    <div class="stat-card stat-card-liability">
+        <span class="stat-label">Platform Liabilities</span>
+        <div class="stat-value">$<?php echo number_format($total_platform_balance, 2); ?></div>
+        <span class="stat-sub">Total User Balances</span>
+    </div>
+
+    <div class="stat-card stat-card-invested">
+        <span class="stat-label">Total Investments</span>
+        <div class="stat-value stat-value-positive">$<?php echo number_format($total_invested, 2); ?></div>
+        <span class="stat-sub">Total Inflow</span>
+    </div>
+
+    <div class="stat-card stat-card-bonus">
+        <span class="stat-label">Bonuses Issued</span>
+        <div class="stat-value stat-value-accent">$<?php echo number_format($total_bonuses, 2); ?></div>
+        <span class="stat-sub">Manual Adjustments</span>
+    </div>
+</div>
+
+    <div class="section-head"><h3>User List</h3></div>
+    <table class="user-table">
         <tr>
             <th>ID</th>
             <th>Username</th>
@@ -403,26 +706,26 @@ $users = $stmt_users->fetchAll();
             <th>Invested</th>
             <th>Actions</th>
         </tr>
-        <?php foreach ($users as $u): ?>
+        <?php foreach ($users_display as $u): ?>
        
         <tr>
-            <td><?php echo htmlspecialchars($u['user_code'] ?: ('#' . $u['id'])); ?></td>
-            <td><?php echo htmlspecialchars($u['username']); ?></td>
-            <td><?php echo htmlspecialchars($u['email']); ?></td>
-            <td>
+            <td data-label="ID"><?php echo htmlspecialchars($u['user_code'] ?: ('#' . $u['id'])); ?></td>
+            <td data-label="Username"><?php echo htmlspecialchars($u['username']); ?></td>
+            <td data-label="Email"><?php echo htmlspecialchars($u['email']); ?></td>
+            <td data-label="Referral Source">
                 <?php if (!empty($u['referrer_id'])): ?>
                     <?php echo htmlspecialchars(getUserCodeById($pdo, (int)$u['referrer_id'])); ?>
                 <?php else: ?>
                     Normal Signup
                 <?php endif; ?>
             </td>
-            <td class="<?php echo $u['role'] == 'admin' ? 'status-admin' : ''; ?>">
+            <td data-label="Role" class="<?php echo $u['role'] == 'admin' ? 'status-admin' : ''; ?>">
                 <?php echo strtoupper($u['role']); ?>
             </td>
-            <td><?php echo strtoupper($u['status']); ?></td>
-            <td>$<?php echo number_format($u['wallet_balance'], 2); ?></td>
-            <td>$<?php echo number_format($u['investment_amount'], 2); ?></td>
-            <td>
+            <td data-label="Status"><?php echo strtoupper($u['status']); ?></td>
+            <td data-label="Balance">$<?php echo number_format($u['wallet_balance'], 2); ?></td>
+            <td data-label="Invested">$<?php echo number_format($u['investment_amount'], 2); ?></td>
+            <td data-label="Actions">
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     <form action="update_balance.php" method="POST" style="display: flex; gap: 5px;">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
@@ -445,6 +748,70 @@ $users = $stmt_users->fetchAll();
         </tr>
         <?php endforeach; ?>
     </table>
+    <div class="user-table-mobile">
+        <?php foreach ($users_display as $u): ?>
+            <details class="user-accordion">
+                <summary>
+                    <div>
+                        <div class="ua-id"><?php echo htmlspecialchars($u['user_code'] ?: ('#' . $u['id'])); ?></div>
+                        <div class="ua-name"><?php echo htmlspecialchars($u['username']); ?></div>
+                    </div>
+                    <span class="ua-caret">▼</span>
+                </summary>
+                <div class="user-accordion-body">
+                    <div class="ua-row">
+                        <span class="ua-row-label">Email</span>
+                        <span><?php echo htmlspecialchars($u['email']); ?></span>
+                    </div>
+                    <div class="ua-row">
+                        <span class="ua-row-label">Referral</span>
+                        <span>
+                            <?php if (!empty($u['referrer_id'])): ?>
+                                <?php echo htmlspecialchars(getUserCodeById($pdo, (int)$u['referrer_id'])); ?>
+                            <?php else: ?>
+                                Normal Signup
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                    <div class="ua-row">
+                        <span class="ua-row-label">Role</span>
+                        <span><?php echo strtoupper($u['role']); ?></span>
+                    </div>
+                    <div class="ua-row">
+                        <span class="ua-row-label">Status</span>
+                        <span><?php echo strtoupper($u['status']); ?></span>
+                    </div>
+                    <div class="ua-row">
+                        <span class="ua-row-label">Balance</span>
+                        <span>$<?php echo number_format($u['wallet_balance'], 2); ?></span>
+                    </div>
+                    <div class="ua-row">
+                        <span class="ua-row-label">Invested</span>
+                        <span>$<?php echo number_format($u['investment_amount'], 2); ?></span>
+                    </div>
+                    <div class="ua-actions">
+                        <form action="update_balance.php" method="POST" class="ua-adjust-form">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                            <input type="hidden" name="user_id" value="<?php echo $u['id']; ?>">
+                            <input type="number" name="amount" step="0.01" placeholder="0.00" required>
+                            <button type="submit" name="action" value="add" class="btn-add">+</button>
+                            <button type="submit" name="action" value="subtract" class="btn-sub">-</button>
+                        </form>
+                        <?php if ($u['role'] !== 'admin'): ?>
+                            <form action="toggle_status.php" method="POST">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                                <input type="hidden" name="id" value="<?php echo (int)$u['id']; ?>">
+                                <button type="submit" class="btn-status <?php echo $u['status'] === 'active' ? 'btn-ban' : 'btn-unban'; ?>">
+                                    <?php echo $u['status'] === 'active' ? 'Ban User' : 'Unban User'; ?>
+                                </button>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </details>
+        <?php endforeach; ?>
+    </div>
+    <?php echo renderAdminPager('users_page', $users_page, $users_pages); ?>
 <?php
 // Fetch last 10 transactions
 $stmt_logs = $pdo->query("
@@ -486,10 +853,35 @@ $stmt_withdrawals = $pdo->query("
     ORDER BY w.created_at DESC
 ");
 $pending_withdrawals = $stmt_withdrawals->fetchAll();
+
+$crypto_page = max(1, (int)($_GET['crypto_page'] ?? 1));
+$investments_page = max(1, (int)($_GET['investments_page'] ?? 1));
+$withdrawals_page = max(1, (int)($_GET['withdrawals_page'] ?? 1));
+$logs_page = max(1, (int)($_GET['logs_page'] ?? 1));
+
+$pending_crypto_total = count($pending_crypto);
+$pending_investments_total = count($pending_investments);
+$pending_withdrawals_total = count($pending_withdrawals);
+$logs_total = count($logs);
+
+$pending_crypto_pages = max(1, (int)ceil($pending_crypto_total / $dashboard_limit));
+$pending_investments_pages = max(1, (int)ceil($pending_investments_total / $dashboard_limit));
+$pending_withdrawals_pages = max(1, (int)ceil($pending_withdrawals_total / $dashboard_limit));
+$logs_pages = max(1, (int)ceil($logs_total / $dashboard_limit));
+
+$crypto_page = min($crypto_page, $pending_crypto_pages);
+$investments_page = min($investments_page, $pending_investments_pages);
+$withdrawals_page = min($withdrawals_page, $pending_withdrawals_pages);
+$logs_page = min($logs_page, $logs_pages);
+
+$pending_crypto_display = array_slice($pending_crypto, ($crypto_page - 1) * $dashboard_limit, $dashboard_limit);
+$pending_investments_display = array_slice($pending_investments, ($investments_page - 1) * $dashboard_limit, $dashboard_limit);
+$pending_withdrawals_display = array_slice($pending_withdrawals, ($withdrawals_page - 1) * $dashboard_limit, $dashboard_limit);
+$logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboard_limit);
 ?>
 
 <div style="margin-top: 50px;">
-    <h3>Pending Crypto Address Verifications</h3>
+    <div class="section-head"><h3>Pending Crypto Address Verifications</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -501,10 +893,10 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             </tr>
         </thead>
         <tbody>
-            <?php if (empty($pending_crypto)): ?>
+            <?php if (empty($pending_crypto_display)): ?>
                 <tr><td colspan="5" style="text-align:center;">No pending crypto verification requests</td></tr>
             <?php else: ?>
-                <?php foreach ($pending_crypto as $ca): ?>
+                <?php foreach ($pending_crypto_display as $ca): ?>
                     <tr>
                         <td><?php echo date('M d, Y H:i', strtotime($ca['created_at'])); ?></td>
                         <td><?php echo htmlspecialchars($ca['username']) . " (" . htmlspecialchars($ca['email']) . ")"; ?></td>
@@ -523,8 +915,9 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             <?php endif; ?>
         </tbody>
     </table>
+    <?php echo renderAdminPager('crypto_page', $crypto_page, $pending_crypto_pages); ?>
 
-    <h3>Pending Investment Requests</h3>
+    <div class="section-head"><h3>Pending Investment Requests</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -537,10 +930,10 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             </tr>
         </thead>
         <tbody>
-            <?php if (empty($pending_investments)): ?>
+            <?php if (empty($pending_investments_display)): ?>
                 <tr><td colspan="6" style="text-align:center;">No pending investment requests</td></tr>
             <?php else: ?>
-                <?php foreach ($pending_investments as $ir): ?>
+                <?php foreach ($pending_investments_display as $ir): ?>
                     <tr>
                         <td><?php echo date('M d, Y H:i', strtotime($ir['created_at'])); ?></td>
                         <td><?php echo htmlspecialchars($ir['username']) . " (" . htmlspecialchars($ir['email']) . ")"; ?></td>
@@ -560,8 +953,9 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             <?php endif; ?>
         </tbody>
     </table>
+    <?php echo renderAdminPager('investments_page', $investments_page, $pending_investments_pages); ?>
 
-    <h3>Pending Withdrawal Requests</h3>
+    <div class="section-head"><h3>Pending Withdrawal Requests</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -574,10 +968,10 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             </tr>
         </thead>
         <tbody>
-            <?php if (empty($pending_withdrawals)): ?>
+            <?php if (empty($pending_withdrawals_display)): ?>
                 <tr><td colspan="6" style="text-align:center;">No pending withdrawals</td></tr>
             <?php else: ?>
-                <?php foreach ($pending_withdrawals as $w): ?>
+                <?php foreach ($pending_withdrawals_display as $w): ?>
                     <tr>
                         <td><?php echo date('M d, Y H:i', strtotime($w['created_at'])); ?></td>
                         <td><?php echo htmlspecialchars($w['username']) . " (" . htmlspecialchars($w['email']) . ")"; ?></td>
@@ -597,8 +991,9 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             <?php endif; ?>
         </tbody>
     </table>
+    <?php echo renderAdminPager('withdrawals_page', $withdrawals_page, $pending_withdrawals_pages); ?>
 
-    <h3>Recent Activity Log</h3>
+    <div class="section-head"><h3>Recent Activity Log</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -609,7 +1004,7 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($logs as $log): ?>
+            <?php foreach ($logs_display as $log): ?>
             <tr>
                 <td><?php echo $log['created_at']; ?></td>
                 <td><?php echo $log['user_email']; ?></td>
@@ -623,7 +1018,31 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
             <?php endforeach; ?>
         </tbody>
     </table>
+    <?php echo renderAdminPager('logs_page', $logs_page, $logs_pages); ?>
 </div>
+
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <div class="site-footer-grid">
+            <div>
+                <h3 class="site-footer-title">Admin Console</h3>
+                <p class="site-footer-text">Centralized governance for member records, requests, platform liabilities, and manual adjustments.</p>
+            </div>
+            <div class="site-footer-links">
+                <a href="admin_dashboard.php">Dashboard</a>
+                <a href="admin_withdrawals.php">Withdrawals</a>
+                <a href="admin_settings.php">Settings</a>
+                <a href="contact.php">Support Contacts</a>
+            </div>
+            <div class="site-footer-metrics">
+                <div>Total Members: <?php echo number_format((int)$total_users); ?></div>
+                <div>Total Investments: $<?php echo number_format((float)$total_invested, 2); ?></div>
+                <div>Platform Liabilities: $<?php echo number_format((float)$total_platform_balance, 2); ?></div>
+            </div>
+        </div>
+        <div class="site-footer-copy">&copy; <?php echo date('Y'); ?> Network Platform Admin</div>
+    </div>
+</footer>
 
 <style>
     .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; background: #fff; color: #333; }
@@ -632,5 +1051,66 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
     .add { background: #10b981; }
     .subtract { background: #ef4444; }
 </style>
+<script>
+    (function () {
+        var toggles = document.querySelectorAll('.mobile-nav-toggle');
+        toggles.forEach(function (btn) {
+            var header = btn.closest('.landing-header, .main-header, .header');
+            if (!header) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = header.classList.toggle('nav-open');
+                btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                if (isOpen) {
+                    header.classList.remove('search-open');
+                    var searchBtn = header.querySelector('.mobile-search-toggle');
+                    if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+            header.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    header.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
+        });
+        document.addEventListener('click', function (e) {
+            toggles.forEach(function (btn) {
+                var header = btn.closest('.landing-header, .main-header, .header');
+                if (!header || header.contains(e.target)) return;
+                header.classList.remove('nav-open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+
+        var searchToggles = document.querySelectorAll('.mobile-search-toggle');
+        searchToggles.forEach(function (btn) {
+            var header = btn.closest('.main-header');
+            if (!header) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = header.classList.toggle('search-open');
+                btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                if (isOpen) {
+                    header.classList.remove('nav-open');
+                    var navBtn = header.querySelector('.mobile-nav-toggle');
+                    if (navBtn) navBtn.setAttribute('aria-expanded', 'false');
+                    var searchInput = header.querySelector('.search-form input[name=\"search\"]');
+                    if (searchInput) searchInput.focus();
+                }
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            searchToggles.forEach(function (btn) {
+                var header = btn.closest('.main-header');
+                if (!header || header.contains(e.target)) return;
+                header.classList.remove('search-open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+    })();
+</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

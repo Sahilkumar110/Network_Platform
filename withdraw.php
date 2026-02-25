@@ -92,11 +92,12 @@ $withdrawals = $history_stmt->fetchAll();
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Withdraw Funds | Network Platform</title>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+<style>
         :root { --primary: #1e3a8a; --secondary: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; }
         body { font-family: 'Inter', sans-serif; background: #f1f5f9; margin: 0; padding: 20px; color: #1e293b; }
         .container { max-width: 600px; margin: 40px auto; }
@@ -127,6 +128,7 @@ $withdrawals = $history_stmt->fetchAll();
         .status-pending { background: #fef3c7; color: #d97706; }
         .status-approved { background: #dcfce7; color: #16a34a; }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 
@@ -197,5 +199,6 @@ $withdrawals = $history_stmt->fetchAll();
 </div>
 
 <script>lucide.createIcons();</script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

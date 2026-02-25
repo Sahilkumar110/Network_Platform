@@ -27,7 +27,7 @@ try {
     $wallet_update = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
     $profit_log = $pdo->prepare(
         "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
-         VALUES (?, ?, 'daily_profit', NULL, 'Daily 1% profit', NOW())"
+         VALUES (?, ?, 'daily_profit', NULL, 'Daily 1% fixed on investment amount', NOW())"
     );
 
     foreach ($users as $user) {

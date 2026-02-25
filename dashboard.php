@@ -20,17 +20,20 @@ $stmt_ref = $pdo->prepare("SELECT username, investment_amount FROM users WHERE r
 $stmt_ref->execute([$user_id]);
 $my_referrals = $stmt_ref->fetchAll();
 
-$base_url = "http://localhost/network_project/Network_Platform/register.php?ref=";
-$referral_link = $base_url . $user['id'];
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$base_path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+$referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . rawurlencode((string)$user['user_code']);
 
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Dashboard | Network Platform</title>
-    <style>
+<style>
         /* Modern Theme Variables */
         :root {
             --primary: #1e3a8a;
@@ -48,6 +51,7 @@ $referral_link = $base_url . $user['id'];
             margin: 0; 
             color: var(--text-dark);
         }
+        * { box-sizing: border-box; }
 
         .container {
             max-width: 1200px;
@@ -179,27 +183,12 @@ $referral_link = $base_url . $user['id'];
 
         .ref-item:last-child { border: none; }
 
-        .btn-withdraw {
-            display: inline-block;
-            width: 100%;
-            text-align: center;
-            padding: 12px;
-            background: var(--success);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            margin-top: 15px;
-        }
-
-        .btn-disabled {
-            background: #e2e8f0;
-            color: #94a3b8;
-            cursor: not-allowed;
-        }
         /* Updated Withdrawal Card Styles */
 .withdraw-status-container {
     margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .btn-withdraw {
@@ -207,13 +196,16 @@ $referral_link = $base_url . $user['id'];
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: 100%;
+    width: 220px;
+    max-width: 100%;
     padding: 14px;
     border-radius: 10px;
     font-weight: 700;
     text-decoration: none;
     transition: all 0.3s ease;
     border: none;
+    margin: 0 auto;
+    text-align: center;
 }
 
 .btn-active {
@@ -257,6 +249,9 @@ $referral_link = $base_url . $user['id'];
     color: var(--danger);
     display: flex;
     justify-content: space-between;
+    width: 220px;
+    max-width: 100%;
+    margin-top: 8px;
 }
 .withdraw-card-link {
     text-decoration: none;
@@ -266,17 +261,134 @@ $referral_link = $base_url . $user['id'];
 .withdraw-card-link .card {
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.withdraw-card-link:hover .card {
+        .withdraw-card-link:hover .card {
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
 }
+
+        @media (max-width: 1024px) {
+            .container {
+                padding: 28px 16px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                gap: 16px;
+            }
+            .balance {
+                font-size: 28px;
+            }
+            .nav-right {
+                gap: 12px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-header {
+                height: auto;
+                padding: 10px 12px;
+                border-radius: 12px;
+                margin: 10px 12px 0;
+            }
+            .nav-container {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .logo {
+                text-align: center;
+                display: block;
+                width: 100%;
+            }
+            .nav-right {
+                width: 100%;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 10px;
+            }
+            .user-info {
+                text-align: center;
+                width: 100%;
+                grid-column: 1 / -1;
+            }
+            .container {
+                padding: 20px 12px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 14px;
+                margin-bottom: 20px;
+            }
+            .card {
+                padding: 18px;
+            }
+            .balance {
+                font-size: 24px;
+            }
+            .ref-box {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+            .ref-box code {
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+            .copy-btn {
+                width: 100%;
+            }
+            .stats-grid .card[style*="grid-column: span 2"] {
+                grid-column: span 1 !important;
+            }
+            .logout-btn {
+                width: 100%;
+                justify-content: center;
+                margin: 0;
+            }
+            .profile-menu {
+                grid-column: 1 / -1;
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                margin: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo {
+                font-size: 18px;
+            }
+            .logout-btn {
+                width: 100%;
+                justify-content: center;
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+            .profile-card {
+                width: min(92vw, 240px);
+                right: 0;
+            }
+            .btn-withdraw,
+            .needed-text {
+                width: 100%;
+            }
+            .ref-item {
+                gap: 8px;
+                align-items: flex-start;
+            }
+        }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
-<body>
+<body class="user-dashboard">
 
 <header class="main-header">
     <div class="nav-container">
         <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
+        <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
         <div class="nav-right">
             <div class="user-info">
                 <span class="role-badge <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin-bg' : 'user-bg'; ?>">
@@ -304,7 +416,16 @@ $referral_link = $base_url . $user['id'];
 </header>
 
 <div class="container">
-    <h1 style="margin-bottom: 30px;">Welcome back, <?php echo htmlspecialchars($user['username']); ?>!</h1>
+    <h1 class="page-title">Welcome back, <?php echo htmlspecialchars($user['username']); ?>!</h1>
+    <div class="theme-banner">
+        <div class="theme-banner-text">
+            <h3>Track Daily Profit and Team Growth</h3>
+            <p>Monitor wallet movement, unlock withdrawals at threshold, and grow your referral network with clear live stats.</p>
+        </div>
+        <div class="theme-banner-image">
+            <img src="assets/invest-growth.svg" alt="Dashboard growth visual">
+        </div>
+    </div>
 
     <div class="stats-grid">
         <div class="card">
@@ -397,13 +518,64 @@ $referral_link = $base_url . $user['id'];
     </div>
 </div>
 
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <div class="site-footer-grid">
+            <div>
+                <h3 class="site-footer-title">Member Center</h3>
+                <p class="site-footer-text">Manage your balance, referrals, and withdrawals from a single secure dashboard.</p>
+            </div>
+            <div class="site-footer-links">
+                <a href="dashboard.php">Dashboard</a>
+                <a href="referrals.php">Referral Tree</a>
+                <a href="withdraw.php">Withdraw</a>
+                <a href="contact.php">Support</a>
+            </div>
+            <div class="site-footer-metrics">
+                <div>Wallet Balance: $<?php echo number_format((float)$user['wallet_balance'], 2); ?></div>
+                <div>Direct Team Size: <?php echo count($my_referrals); ?></div>
+                <div>User Rank: <?php echo htmlspecialchars((string)$user['user_rank']); ?></div>
+            </div>
+        </div>
+        <div class="site-footer-copy">&copy; <?php echo date('Y'); ?> Network Platform</div>
+    </div>
+</footer>
+
 <script>
+    (function () {
+        var toggles = document.querySelectorAll('.mobile-nav-toggle');
+        toggles.forEach(function (btn) {
+            var header = btn.closest('.landing-header, .main-header, .header');
+            if (!header) return;
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = header.classList.toggle('nav-open');
+                btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+            header.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    header.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
+        });
+        document.addEventListener('click', function (e) {
+            toggles.forEach(function (btn) {
+                var header = btn.closest('.landing-header, .main-header, .header');
+                if (!header || header.contains(e.target)) return;
+                header.classList.remove('nav-open');
+                btn.setAttribute('aria-expanded', 'false');
+            });
+        });
+    })();
+
     function copyLink(text) {
         navigator.clipboard.writeText(text);
         alert("Referral link copied to clipboard!");
     }
 </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 

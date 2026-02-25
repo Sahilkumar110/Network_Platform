@@ -29,8 +29,9 @@ $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 <!DOCTYPE html>
 <html>
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Platform Settings</title>
-    <style>
+<style>
         body { font-family: sans-serif; background: #f4f7f6; padding: 40px; }
         .settings-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 500px; margin: 0 auto; }
         .form-group { margin-bottom: 20px; }
@@ -38,6 +39,7 @@ $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         input { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
         .save-btn { width: 100%; padding: 12px; background: #1e3a8a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 
@@ -68,5 +70,6 @@ $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     <a href="admin_dashboard.php" style="text-decoration: none; color: #666; font-size: 14px;">← Back to Dashboard</a>
 </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -3,8 +3,31 @@ session_start();
 include 'db.php'; 
 include 'functions.php'; 
 
-$ref_id = isset($_GET['ref']) ? (int)$_GET['ref'] : null;
-$ref_code = $ref_id ? getUserCodeById($pdo, $ref_id) : null;
+$ref_input = trim((string)($_GET['ref'] ?? ''));
+$ref_id = null;
+$ref_code = null;
+if ($ref_input !== '') {
+    if (ctype_digit($ref_input)) {
+        $candidate_id = (int)$ref_input;
+        if ($candidate_id > 0) {
+            $check_ref = $pdo->prepare("SELECT id, user_code FROM users WHERE id = ? LIMIT 1");
+            $check_ref->execute([$candidate_id]);
+            $ref_user = $check_ref->fetch(PDO::FETCH_ASSOC);
+            if ($ref_user) {
+                $ref_id = (int)$ref_user['id'];
+                $ref_code = (string)$ref_user['user_code'];
+            }
+        }
+    } else {
+        $check_ref = $pdo->prepare("SELECT id, user_code FROM users WHERE user_code = ? LIMIT 1");
+        $check_ref->execute([$ref_input]);
+        $ref_user = $check_ref->fetch(PDO::FETCH_ASSOC);
+        if ($ref_user) {
+            $ref_id = (int)$ref_user['id'];
+            $ref_code = (string)$ref_user['user_code'];
+        }
+    }
+}
 $error = "";
 $success = "";
 
@@ -16,6 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
     $referrer = !empty($_POST['referrer_id']) ? (int)$_POST['referrer_id'] : null;
+    if (!empty($referrer)) {
+        $check_ref = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+        $check_ref->execute([$referrer]);
+        if (!$check_ref->fetchColumn()) {
+            $referrer = null;
+        }
+    }
 
     $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ?");
     $checkEmail->execute([$email]);
@@ -44,11 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Join Network Platform | Create Account</title>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+<style>
         :root { --primary: #1e3a8a; --secondary: #3b82f6; --bg: #f8fafc; }
         body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #f3f4f6; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         
@@ -100,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border: 1px dashed #cbd5e1;
         }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 
@@ -167,5 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

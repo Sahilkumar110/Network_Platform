@@ -71,8 +71,9 @@ $requests = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
 <!DOCTYPE html>
 <html>
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <title>Invest via Crypto</title>
-    <style>
+<style>
         body { font-family: Arial; padding: 40px; background: #f4f4f4; }
         .box { background: white; padding: 20px; border-radius: 10px; max-width: 620px; margin: auto; }
         input, select { width: 100%; box-sizing:border-box; padding: 10px; margin: 10px 0; }
@@ -82,6 +83,7 @@ $requests = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
         th, td { border:1px solid #e2e8f0; padding:8px; font-size:12px; text-align:left; }
         th { background:#f8fafc; }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
     <div class="box">
@@ -129,5 +131,6 @@ $requests = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
         <br>
         <a href="dashboard.php">Back to Dashboard</a>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

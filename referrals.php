@@ -23,6 +23,11 @@ if (!$current_user) {
     exit();
 }
 
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$base_path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+$referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . rawurlencode((string)$current_user['user_code']);
+
 // Pull enough fields to support both tree and level views.
 $all_stmt = $pdo->query("SELECT id, username, email, referrer_id, created_at, user_code FROM users ORDER BY id ASC");
 $all_users = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -125,10 +130,11 @@ function renderTreeLevel(array $children_map, int $parent_id, int $depth, int $m
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Referral Network</title>
-    <style>
+<style>
         :root {
             --primary: #1e3a8a;
             --secondary: #3b82f6;
@@ -372,15 +378,16 @@ function renderTreeLevel(array $children_map, int $parent_id, int $depth, int $m
             }
         }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
     <div class="container">
         <div class="top">
             <a href="dashboard.php" class="back-link">Back to Dashboard</a>
-            <div class="subtitle">Your referral link: <code>http://localhost/network_project/Network_Platform/register.php?ref=<?php echo $user_id; ?></code></div>
+            <div class="subtitle">Your referral link: <code><?php echo htmlspecialchars($referral_link); ?></code></div>
         </div>
 
-        <h1 class="title">My Referral Network</h1>
+        <h1 class="title page-title">My Referral Network</h1>
         <p class="subtitle">View your team as an expandable tree or in the classic 5-level layout.</p>
 
         <div class="stats">
@@ -566,5 +573,6 @@ function renderTreeLevel(array $children_map, int $parent_id, int $depth, int $m
 
         applyFilters();
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

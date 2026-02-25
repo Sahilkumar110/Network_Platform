@@ -38,10 +38,11 @@ $addresses = $addr_stmt->fetchAll(PDO::FETCH_ASSOC);
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Address Profile</title>
-    <style>
+<style>
         body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; padding: 20px; }
         .container { max-width: 900px; margin: 20px auto; }
         .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
@@ -61,6 +62,7 @@ $addresses = $addr_stmt->fetchAll(PDO::FETCH_ASSOC);
         .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .link { text-decoration: none; color: #1e3a8a; font-weight: 700; }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
     <div class="container">
@@ -119,5 +121,6 @@ $addresses = $addr_stmt->fetchAll(PDO::FETCH_ASSOC);
             </table>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

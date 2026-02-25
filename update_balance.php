@@ -23,20 +23,52 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
-    // 1. Update the User's Balance
-    $final_amount = ($action === 'subtract') ? -$amount : $amount;
-    $stmt = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
-    
-    if ($stmt->execute([$final_amount, $user_id])) {
-        updateUserRank($pdo, $user_id);
-        
-        // 2. NEW: Record the Transaction in the Log
+    try {
+        $pdo->beginTransaction();
+
+        if ($action === 'add') {
+            // Admin credit is treated as both wallet credit and investment credit.
+            // This ensures referral commissions run on the invested amount.
+            $stmt = $pdo->prepare(
+                "UPDATE users
+                 SET wallet_balance = wallet_balance + ?, investment_amount = investment_amount + ?
+                 WHERE id = ?"
+            );
+            $stmt->execute([$amount, $amount, $user_id]);
+            if ($stmt->rowCount() === 0) {
+                throw new Exception("User not found.");
+            }
+
+            $tx_stmt = $pdo->prepare(
+                "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
+                 VALUES (?, ?, 'deposit', NULL, 'Admin balance/investment credit', NOW())"
+            );
+            $tx_stmt->execute([$user_id, $amount]);
+
+            distributeCommissions($pdo, $user_id, $amount);
+            updateUserRank($pdo, $user_id);
+        } else {
+            $stmt = $pdo->prepare(
+                "UPDATE users
+                 SET wallet_balance = wallet_balance - ?
+                 WHERE id = ? AND wallet_balance >= ?"
+            );
+            $stmt->execute([$amount, $user_id, $amount]);
+            if ($stmt->rowCount() === 0) {
+                throw new Exception("Insufficient wallet balance or user not found.");
+            }
+        }
+
         $log_stmt = $pdo->prepare("INSERT INTO transaction_logs (admin_id, user_id, action_type, amount) VALUES (?, ?, ?, ?)");
         $log_stmt->execute([$admin_id, $user_id, $action, $amount]);
 
+        $pdo->commit();
         header("Location: admin_dashboard.php?success=Balance Updated and Logged");
-    } else {
-        header("Location: admin_dashboard.php?error=Update Failed");
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        header("Location: admin_dashboard.php?error=" . urlencode($e->getMessage()));
     }
     exit();
 }

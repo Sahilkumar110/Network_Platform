@@ -48,11 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | Network Platform</title>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+<style>
         :root { --primary: #1e3a8a; --secondary: #3b82f6; --bg: #f8fafc; }
         
         body { 
@@ -92,18 +93,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         .mode-selector input:checked + span { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        .input-group { text-align: left; margin-bottom: 15px; position: relative; }
+        .input-group { text-align: left; margin-bottom: 15px; display: block; }
         .input-group label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
 
-        input[type="email"], input[type="password"], input[type="text"] { 
-            width: 100%; padding: 14px; border: 1.5px solid #e2e8f0; 
-            border-radius: 12px; box-sizing: border-box; font-size: 16px; 
-            transition: 0.3s; background: #f8fafc;
+        .input-control { 
+            width: 100%;
+            height: 50px;
+            padding: 12px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: 0.3s;
+            background: #f8fafc;
         }
-        input:focus { outline: none; border-color: var(--secondary); background: white; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .input-control:focus { outline: none; border-color: var(--secondary); background: white; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+        .input-group > .input-control {
+            border-radius: 12px !important;
+        }
 
         /* Eye Button Styling */
         .password-wrapper { position: relative; }
+        .password-wrapper .input-control { padding-right: 46px; }
         .toggle-password {
             position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
             background: none; border: none; color: #94a3b8; cursor: pointer;
@@ -121,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .footer-text { margin-top: 25px; font-size: 14px; color: #64748b; }
         .footer-text a { color: var(--secondary); text-decoration: none; font-weight: 600; }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
 
@@ -147,13 +159,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         <div class="input-group">
             <label>Email Address</label>
-            <input type="email" name="email" placeholder="Enter your email" required>
+            <input type="email" name="email" class="input-control" placeholder="Enter your email" required>
         </div>
 
         <div class="input-group">
             <label>Password</label>
             <div class="password-wrapper">
-                <input type="password" name="password" id="password" placeholder="••••••••" required>
+                <input type="password" name="password" id="password" class="input-control" placeholder="Enter your password" required>
                 <button type="button" class="toggle-password" onclick="togglePassword()">
                     <i id="eye-icon" data-lucide="eye"></i>
                 </button>
@@ -190,5 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
