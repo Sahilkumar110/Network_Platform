@@ -12,13 +12,8 @@ if ($last_run === $today) {
     die("Daily profit has already been processed for today.");
 }
 
-$stmt_rate = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'daily_interest'");
-$stmt_rate->execute();
-$rate_percent = (float)$stmt_rate->fetchColumn();
-if ($rate_percent <= 0) {
-    $rate_percent = 1.0;
-}
-$rate_decimal = $rate_percent / 100;
+$rate_percent = 1.0;
+$rate_decimal = 0.01;
 
 try {
     $pdo->beginTransaction();

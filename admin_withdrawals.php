@@ -50,6 +50,7 @@ $sql .= " ORDER BY w.created_at DESC ";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+backfillMissingUserCodes($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -142,7 +143,7 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <?php foreach ($rows as $r): ?>
                         <tr>
                             <td><?php echo date('M d, Y H:i', strtotime($r['created_at'])); ?></td>
-                            <td><?php echo htmlspecialchars($r['username']) . " (#" . (int)$r['user_id'] . ")<br><small>" . htmlspecialchars($r['email']) . "</small>"; ?></td>
+                            <td><?php echo htmlspecialchars($r['username']) . " (" . htmlspecialchars(getUserCodeById($pdo, (int)$r['user_id'])) . ")<br><small>" . htmlspecialchars($r['email']) . "</small>"; ?></td>
                             <td>$<?php echo number_format((float)$r['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($r['method']); ?></td>
                             <td><?php echo htmlspecialchars($r['details']); ?></td>

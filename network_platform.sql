@@ -24,6 +24,40 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `user_crypto_addresses`
+--
+
+CREATE TABLE `user_crypto_addresses` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `network` enum('TRC20','BEP20','SOLANA') NOT NULL,
+  `address` varchar(255) NOT NULL,
+  `status` enum('pending','verified','rejected') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `verified_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `investment_requests`
+--
+
+CREATE TABLE `investment_requests` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `network` varchar(20) NOT NULL,
+  `tx_hash` varchar(255) NOT NULL,
+  `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `admin_note` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `processed_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `milestone_rewards`
 --
 
@@ -121,6 +155,7 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
   `email` varchar(100) NOT NULL,
+  `user_code` varchar(20) DEFAULT NULL,
   `referrer_id` int(11) DEFAULT NULL,
   `wallet_balance` decimal(15,2) DEFAULT 0.00,
   `investment_amount` decimal(15,2) DEFAULT 0.00,
@@ -188,6 +223,23 @@ ALTER TABLE `milestone_rewards`
   ADD UNIQUE KEY `uniq_user_milestone` (`user_id`,`milestone_code`);
 
 --
+-- Indexes for table `investment_requests`
+--
+ALTER TABLE `investment_requests`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user_status` (`user_id`,`status`),
+  ADD KEY `idx_created_at` (`created_at`);
+
+--
+-- Indexes for table `user_crypto_addresses`
+--
+ALTER TABLE `user_crypto_addresses`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_user_network` (`user_id`,`network`),
+  ADD UNIQUE KEY `uniq_network_address` (`network`,`address`),
+  ADD KEY `idx_status_created` (`status`,`created_at`);
+
+--
 -- Indexes for table `transactions`
 --
 ALTER TABLE `transactions`
@@ -205,8 +257,8 @@ ALTER TABLE `transaction_logs`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `username` (`username`),
   ADD UNIQUE KEY `email` (`email`),
+  ADD UNIQUE KEY `user_code` (`user_code`),
   ADD KEY `referrer_id` (`referrer_id`);
 
 --
@@ -229,6 +281,18 @@ ALTER TABLE `transactions`
 -- AUTO_INCREMENT for table `milestone_rewards`
 --
 ALTER TABLE `milestone_rewards`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `investment_requests`
+--
+ALTER TABLE `investment_requests`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `user_crypto_addresses`
+--
+ALTER TABLE `user_crypto_addresses`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -264,6 +328,18 @@ ALTER TABLE `transactions`
 --
 ALTER TABLE `milestone_rewards`
   ADD CONSTRAINT `milestone_rewards_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+
+--
+-- Constraints for table `investment_requests`
+--
+ALTER TABLE `investment_requests`
+  ADD CONSTRAINT `investment_requests_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
+
+--
+-- Constraints for table `user_crypto_addresses`
+--
+ALTER TABLE `user_crypto_addresses`
+  ADD CONSTRAINT `user_crypto_addresses_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`);
 
 --
 -- Constraints for table `users`

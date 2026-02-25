@@ -9,9 +9,11 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = (int)$_SESSION['user_id'];
+
+backfillMissingUserCodes($pdo);
 updateUserRank($pdo, $user_id);
 
-$user_stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
+$user_stmt = $pdo->prepare("SELECT id, username, user_code FROM users WHERE id = ?");
 $user_stmt->execute([$user_id]);
 $current_user = $user_stmt->fetch();
 
@@ -22,7 +24,7 @@ if (!$current_user) {
 }
 
 // Pull enough fields to support both tree and level views.
-$all_stmt = $pdo->query("SELECT id, username, email, referrer_id, created_at FROM users ORDER BY id ASC");
+$all_stmt = $pdo->query("SELECT id, username, email, referrer_id, created_at, user_code FROM users ORDER BY id ASC");
 $all_users = $all_stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $user_by_id = [];
@@ -105,7 +107,8 @@ function renderTreeLevel(array $children_map, int $parent_id, int $depth, int $m
         echo '<span class="node-name">' . htmlspecialchars($child['username']) . '</span>';
         echo '<span class="node-level">L' . $depth . '</span>';
         echo '</div>';
-        echo '<div class="node-meta">ID #' . $child_id . ' | ' . htmlspecialchars($child['email']) . '</div>';
+        $display_code = !empty($child['user_code']) ? $child['user_code'] : ('#' . $child_id);
+        echo '<div class="node-meta">ID ' . htmlspecialchars($display_code) . ' | ' . htmlspecialchars($child['email']) . '</div>';
         echo '<div class="node-meta">Joined: ' . $join_date . ' | Directs: ' . count($grandchildren) . '</div>';
         echo '</div>';
 
@@ -422,7 +425,7 @@ function renderTreeLevel(array $children_map, int $parent_id, int $depth, int $m
                         <span class="node-name"><?php echo htmlspecialchars($current_user['username']); ?> (You)</span>
                         <span class="node-level">Root</span>
                     </div>
-                    <div class="node-meta">ID #<?php echo (int)$current_user['id']; ?></div>
+                    <div class="node-meta">ID <?php echo htmlspecialchars(!empty($current_user['user_code']) ? $current_user['user_code'] : ('#' . (int)$current_user['id'])); ?></div>
                 </div>
                 <?php renderTreeLevel($children_map, $user_id, 1, 5); ?>
             </div>

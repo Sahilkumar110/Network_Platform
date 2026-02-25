@@ -10,6 +10,57 @@ function verifyCsrfToken($token) {
     return isset($_SESSION['csrf_token']) && is_string($token) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
+function generateUniqueUserCode($pdo) {
+    $year_suffix = date('y');
+    for ($i = 0; $i < 50; $i++) {
+        $random_part = (string)random_int(10000, 99999);
+        $candidate = "NP#{$random_part}{$year_suffix}";
+        $check = $pdo->prepare("SELECT COUNT(*) FROM users WHERE user_code = ?");
+        $check->execute([$candidate]);
+        if ((int)$check->fetchColumn() === 0) {
+            return $candidate;
+        }
+    }
+    throw new Exception("Unable to generate unique user code.");
+}
+
+function ensureUserCode($pdo, $user_id) {
+    $stmt = $pdo->prepare("SELECT user_code FROM users WHERE id = ?");
+    $stmt->execute([(int)$user_id]);
+    $code = $stmt->fetchColumn();
+    if (!empty($code)) {
+        return $code;
+    }
+
+    $new_code = generateUniqueUserCode($pdo);
+    $update = $pdo->prepare("UPDATE users SET user_code = ? WHERE id = ? AND (user_code IS NULL OR user_code = '')");
+    $update->execute([$new_code, (int)$user_id]);
+
+    $stmt->execute([(int)$user_id]);
+    return (string)$stmt->fetchColumn();
+}
+
+function backfillMissingUserCodes($pdo) {
+    $stmt = $pdo->query("SELECT id FROM users WHERE user_code IS NULL OR user_code = ''");
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($ids as $id) {
+        ensureUserCode($pdo, (int)$id);
+    }
+}
+
+function getUserCodeById($pdo, $user_id) {
+    if (empty($user_id)) {
+        return null;
+    }
+    $stmt = $pdo->prepare("SELECT user_code FROM users WHERE id = ?");
+    $stmt->execute([(int)$user_id]);
+    $code = $stmt->fetchColumn();
+    if (!empty($code)) {
+        return $code;
+    }
+    return ensureUserCode($pdo, (int)$user_id);
+}
+
 function getReferralCountAtLevel($pdo, $root_user_id, $target_level) {
     $current_ids = [(int)$root_user_id];
     for ($level = 1; $level <= (int)$target_level; $level++) {
@@ -30,22 +81,15 @@ function getReferralCountAtLevel($pdo, $root_user_id, $target_level) {
 }
 
 function updateUserRank($pdo, $user_id) {
-    $stmt = $pdo->prepare("SELECT wallet_balance FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT investment_amount FROM users WHERE id = ?");
     $stmt->execute([$user_id]);
-    $wallet_balance = (float)$stmt->fetchColumn();
+    $investment_amount = (float)$stmt->fetchColumn();
 
-    $level_1_count = getReferralCountAtLevel($pdo, $user_id, 1);
-    $level_2_count = getReferralCountAtLevel($pdo, $user_id, 2);
-    $level_3_count = getReferralCountAtLevel($pdo, $user_id, 3);
-    $level_4_count = getReferralCountAtLevel($pdo, $user_id, 4);
-
-    if ($wallet_balance >= 2000 && $level_4_count >= 10) {
+    if ($investment_amount >= 20000) {
         $rank = 'Diamond';
-    } elseif ($wallet_balance >= 1500 && $level_3_count >= 7) {
+    } elseif ($investment_amount >= 15000) {
         $rank = 'Gold';
-    } elseif ($wallet_balance >= 1000 && $level_2_count >= 5) {
-        $rank = 'Silver';
-    } elseif ($level_1_count >= 3) {
+    } elseif ($investment_amount >= 10000) {
         $rank = 'Silver';
     } else {
         $rank = 'Basic';
@@ -66,6 +110,94 @@ function ensureMilestoneTable($pdo) {
             UNIQUE KEY uniq_user_milestone (user_id, milestone_code)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+}
+
+function ensureInvestmentRequestsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS investment_requests (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            amount DECIMAL(15,2) NOT NULL,
+            network VARCHAR(20) NOT NULL,
+            tx_hash VARCHAR(255) NOT NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            admin_note VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processed_at TIMESTAMP NULL DEFAULT NULL,
+            INDEX idx_user_status (user_id, status),
+            INDEX idx_created_at (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureUserCryptoAddressesTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS user_crypto_addresses (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            network ENUM('TRC20','BEP20','SOLANA') NOT NULL,
+            address VARCHAR(255) NOT NULL,
+            status ENUM('pending','verified','rejected') NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            verified_at TIMESTAMP NULL DEFAULT NULL,
+            UNIQUE KEY uniq_user_network (user_id, network),
+            UNIQUE KEY uniq_network_address (network, address),
+            INDEX idx_status_created (status, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function normalizeNetwork($network) {
+    return strtoupper(trim((string)$network));
+}
+
+function isSupportedNetwork($network) {
+    return in_array($network, ['TRC20', 'BEP20', 'SOLANA'], true);
+}
+
+function getUserCryptoAddress($pdo, $user_id, $network) {
+    $network = normalizeNetwork($network);
+    $stmt = $pdo->prepare(
+        "SELECT * FROM user_crypto_addresses WHERE user_id = ? AND network = ? LIMIT 1"
+    );
+    $stmt->execute([(int)$user_id, $network]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+function getVerifiedUserCryptoAddress($pdo, $user_id, $network) {
+    $network = normalizeNetwork($network);
+    $stmt = $pdo->prepare(
+        "SELECT address FROM user_crypto_addresses WHERE user_id = ? AND network = ? AND status = 'verified' LIMIT 1"
+    );
+    $stmt->execute([(int)$user_id, $network]);
+    return $stmt->fetchColumn();
+}
+
+function saveUserCryptoAddress($pdo, $user_id, $network, $address) {
+    $network = normalizeNetwork($network);
+    $address = trim((string)$address);
+    if (!isSupportedNetwork($network)) {
+        throw new Exception("Unsupported network.");
+    }
+    if ($address === '') {
+        throw new Exception("Address is required.");
+    }
+
+    $existing = getUserCryptoAddress($pdo, (int)$user_id, $network);
+    if ($existing) {
+        $stmt = $pdo->prepare(
+            "UPDATE user_crypto_addresses
+             SET address = ?, status = 'pending', verified_at = NULL, created_at = NOW()
+             WHERE user_id = ? AND network = ?"
+        );
+        $stmt->execute([$address, (int)$user_id, $network]);
+    } else {
+        $stmt = $pdo->prepare(
+            "INSERT INTO user_crypto_addresses (user_id, network, address, status, created_at)
+             VALUES (?, ?, ?, 'pending', NOW())"
+        );
+        $stmt->execute([(int)$user_id, $network, $address]);
+    }
 }
 
 function applyMilestoneBonus($pdo, $user_id) {

@@ -8,8 +8,9 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
     exit("Access Denied: You must be an Admin.");
 }
+backfillMissingUserCodes($pdo);
 
-$stmt_admin_user = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance FROM users WHERE id = ?");
+$stmt_admin_user = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance, user_code FROM users WHERE id = ?");
 $stmt_admin_user->execute([$_SESSION['user_id']]);
 $admin_user = $stmt_admin_user->fetch();
 $admin_avatar_initial = strtoupper(substr((string)($admin_user['username'] ?? 'A'), 0, 1));
@@ -46,18 +47,18 @@ try {
     $stats = $stmt_stats->fetch();
 
     // 3. FETCH ALL USERS FOR THE TABLE
-    $stmt_users = $pdo->query("SELECT id, username, email, role, wallet_balance, investment_amount, created_at FROM users ORDER BY id DESC");
+    $stmt_users = $pdo->query("SELECT id, username, email, role, status, wallet_balance, investment_amount, created_at, referrer_id, user_code FROM users ORDER BY id DESC");
     $users = $stmt_users->fetchAll();
     // Check if a search was performed
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
 if (!empty($search)) {
     // Search by ID or Email
-    $stmt_users = $pdo->prepare("SELECT * FROM users WHERE email LIKE ? OR id = ? ORDER BY id DESC");
-    $stmt_users->execute(["%$search%", $search]);
+    $stmt_users = $pdo->prepare("SELECT id, username, email, role, status, wallet_balance, investment_amount, created_at, referrer_id, user_code FROM users WHERE email LIKE ? OR id = ? OR user_code LIKE ? ORDER BY id DESC");
+    $stmt_users->execute(["%$search%", $search, "%$search%"]);
 } else {
     // Normal fetch
-    $stmt_users = $pdo->query("SELECT * FROM users ORDER BY id DESC");
+    $stmt_users = $pdo->query("SELECT id, username, email, role, status, wallet_balance, investment_amount, created_at, referrer_id, user_code FROM users ORDER BY id DESC");
 }
 $users = $stmt_users->fetchAll();
 
@@ -334,7 +335,7 @@ $users = $stmt_users->fetchAll();
         <div class="nav-right">
             <div class="user-info">
                 <span class="role-badge admin-bg">ADMIN MODE</span>
-                <span class="user-email">ID: #<?php echo $_SESSION['user_id']; ?></span>
+                <span class="user-email">ID: <?php echo htmlspecialchars($admin_user['user_code'] ?? ('#' . $_SESSION['user_id'])); ?></span>
             </div>
             <a href="admin_withdrawals.php" class="logout-btn" style="background:#0f766e;">Withdrawals</a>
             <a href="dashboard.php" class="logout-btn" style="background:#1e3a8a;">User Dashboard</a>
@@ -347,7 +348,7 @@ $users = $stmt_users->fetchAll();
                     <div class="profile-row">Role: <?php echo htmlspecialchars($admin_user['role'] ?? 'admin'); ?></div>
                     <div class="profile-row">Rank: <?php echo htmlspecialchars($admin_user['user_rank'] ?? 'Basic'); ?></div>
                     <div class="profile-row">Wallet: $<?php echo number_format((float)($admin_user['wallet_balance'] ?? 0), 2); ?></div>
-                    <div class="profile-row">User ID: #<?php echo (int)($_SESSION['user_id']); ?></div>
+                    <div class="profile-row">User ID: <?php echo htmlspecialchars($admin_user['user_code'] ?? ('#' . $_SESSION['user_id'])); ?></div>
                 </div>
             </details>
         </div>
@@ -405,12 +406,12 @@ $users = $stmt_users->fetchAll();
         <?php foreach ($users as $u): ?>
        
         <tr>
-            <td><?php echo $u['id']; ?></td>
+            <td><?php echo htmlspecialchars($u['user_code'] ?: ('#' . $u['id'])); ?></td>
             <td><?php echo htmlspecialchars($u['username']); ?></td>
             <td><?php echo htmlspecialchars($u['email']); ?></td>
             <td>
                 <?php if (!empty($u['referrer_id'])): ?>
-                    User ID #<?php echo (int)$u['referrer_id']; ?>
+                    <?php echo htmlspecialchars(getUserCodeById($pdo, (int)$u['referrer_id'])); ?>
                 <?php else: ?>
                     Normal Signup
                 <?php endif; ?>
@@ -454,6 +455,28 @@ $stmt_logs = $pdo->query("
 ");
 $logs = $stmt_logs->fetchAll();
 
+ensureInvestmentRequestsTable($pdo);
+ensureUserCryptoAddressesTable($pdo);
+// Fetch pending investment requests
+$stmt_investments = $pdo->query("
+    SELECT ir.id, ir.user_id, ir.amount, ir.network, ir.tx_hash, ir.status, ir.created_at, u.username, u.email
+    FROM investment_requests ir
+    JOIN users u ON ir.user_id = u.id
+    WHERE ir.status = 'pending'
+    ORDER BY ir.created_at DESC
+");
+$pending_investments = $stmt_investments->fetchAll();
+
+// Fetch pending crypto address verification requests
+$stmt_crypto = $pdo->query("
+    SELECT ca.id, ca.user_id, ca.network, ca.address, ca.status, ca.created_at, u.username, u.email
+    FROM user_crypto_addresses ca
+    JOIN users u ON ca.user_id = u.id
+    WHERE ca.status = 'pending'
+    ORDER BY ca.created_at DESC
+");
+$pending_crypto = $stmt_crypto->fetchAll();
+
 // Fetch pending withdrawal requests
 $stmt_withdrawals = $pdo->query("
     SELECT w.id, w.user_id, w.amount, w.method, w.details, w.status, w.created_at, u.username, u.email
@@ -466,6 +489,78 @@ $pending_withdrawals = $stmt_withdrawals->fetchAll();
 ?>
 
 <div style="margin-top: 50px;">
+    <h3>Pending Crypto Address Verifications</h3>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Network</th>
+                <th>Address</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($pending_crypto)): ?>
+                <tr><td colspan="5" style="text-align:center;">No pending crypto verification requests</td></tr>
+            <?php else: ?>
+                <?php foreach ($pending_crypto as $ca): ?>
+                    <tr>
+                        <td><?php echo date('M d, Y H:i', strtotime($ca['created_at'])); ?></td>
+                        <td><?php echo htmlspecialchars($ca['username']) . " (" . htmlspecialchars($ca['email']) . ")"; ?></td>
+                        <td><?php echo htmlspecialchars($ca['network']); ?></td>
+                        <td><?php echo htmlspecialchars($ca['address']); ?></td>
+                        <td>
+                            <form action="handle_crypto_address.php" method="POST" style="display:flex; gap:6px;">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                                <input type="hidden" name="row_id" value="<?php echo (int)$ca['id']; ?>">
+                                <button type="submit" name="decision" value="approve" class="btn-add">Approve</button>
+                                <button type="submit" name="decision" value="reject" class="btn-sub">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
+    <h3>Pending Investment Requests</h3>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Amount</th>
+                <th>Network</th>
+                <th>TX Hash</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($pending_investments)): ?>
+                <tr><td colspan="6" style="text-align:center;">No pending investment requests</td></tr>
+            <?php else: ?>
+                <?php foreach ($pending_investments as $ir): ?>
+                    <tr>
+                        <td><?php echo date('M d, Y H:i', strtotime($ir['created_at'])); ?></td>
+                        <td><?php echo htmlspecialchars($ir['username']) . " (" . htmlspecialchars($ir['email']) . ")"; ?></td>
+                        <td>$<?php echo number_format((float)$ir['amount'], 2); ?></td>
+                        <td><?php echo htmlspecialchars($ir['network']); ?></td>
+                        <td><?php echo htmlspecialchars($ir['tx_hash']); ?></td>
+                        <td>
+                            <form action="handle_investment.php" method="POST" style="display:flex; gap:6px;">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                                <input type="hidden" name="request_id" value="<?php echo (int)$ir['id']; ?>">
+                                <button type="submit" name="decision" value="approve" class="btn-add">Approve</button>
+                                <button type="submit" name="decision" value="reject" class="btn-sub">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+
     <h3>Pending Withdrawal Requests</h3>
     <table class="log-table">
         <thead>

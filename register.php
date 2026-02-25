@@ -4,6 +4,7 @@ include 'db.php';
 include 'functions.php'; 
 
 $ref_id = isset($_GET['ref']) ? (int)$_GET['ref'] : null;
+$ref_code = $ref_id ? getUserCodeById($pdo, $ref_id) : null;
 $error = "";
 $success = "";
 
@@ -11,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = "Invalid session token. Please refresh and try again.";
     } else {
-    $username = htmlspecialchars($_POST['username']);
+    $username = trim($_POST['username']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
     $referrer = !empty($_POST['referrer_id']) ? (int)$_POST['referrer_id'] : null;
@@ -22,10 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($checkEmail->rowCount() > 0) {
         $error = "Email already registered!";
     } else {
-        $sql = "INSERT INTO users (username, email, password, referrer_id) VALUES (?, ?, ?, ?)";
+        $user_code = generateUniqueUserCode($pdo);
+        $sql = "INSERT INTO users (username, email, password, referrer_id, user_code) VALUES (?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
         
-        if ($stmt->execute([$username, $email, $password, $referrer])) {
+        if ($stmt->execute([$username, $email, $password, $referrer, $user_code])) {
             if (!empty($referrer)) {
                 applyMilestoneBonus($pdo, $referrer);
                 updateUserRank($pdo, $referrer);
@@ -109,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     <?php if($ref_id): ?>
         <div class="ref-badge">
-            🔗 You were invited by User #<?php echo $ref_id; ?>
+            🔗 You were invited by <?php echo htmlspecialchars($ref_code ?: ("User #" . $ref_id)); ?>
         </div>
     <?php endif; ?>
 

@@ -9,6 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $user_id = $_SESSION['user_id']; 
+ensureUserCode($pdo, $user_id);
 updateUserRank($pdo, $user_id);
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
@@ -281,7 +282,7 @@ $referral_link = $base_url . $user['id'];
                 <span class="role-badge <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'admin-bg' : 'user-bg'; ?>">
                     <?php echo (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') ? 'ADMIN USER VIEW' : 'USER MODE'; ?>
                 </span>
-                <span class="user-email">ID: #<?php echo $user['id']; ?></span>
+                <span class="user-email">ID: <?php echo htmlspecialchars($user['user_code']); ?></span>
             </div>
             <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                 <a href="admin_dashboard.php" class="logout-btn" style="background:#1e3a8a;">Admin Dashboard</a>
@@ -295,7 +296,7 @@ $referral_link = $base_url . $user['id'];
                     <div class="profile-row">Role: <?php echo htmlspecialchars($user['role']); ?></div>
                     <div class="profile-row">Rank: <?php echo htmlspecialchars($user['user_rank']); ?></div>
                     <div class="profile-row">Wallet: $<?php echo number_format((float)$user['wallet_balance'], 2); ?></div>
-                    <div class="profile-row">User ID: #<?php echo (int)$user['id']; ?></div>
+                    <div class="profile-row">User ID: <?php echo htmlspecialchars($user['user_code']); ?></div>
                 </div>
             </details>
         </div>
@@ -312,8 +313,8 @@ $referral_link = $base_url . $user['id'];
             <p style="margin: 0; font-size: 14px; color: var(--text-light);">
                 Rank: <strong style="color: var(--secondary);"><?php echo $user['user_rank']; ?></strong>
             </p>
-            <a href="add_wallet.php" style="display:inline-block; margin-top:12px; text-decoration:none; background: var(--secondary); color:white; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">
-                Add Wallet Balance
+            <a href="crypto_profile.php" style="display:inline-block; margin-top:8px; text-decoration:none; background:#0f766e; color:white; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">
+                Crypto Address Profile
             </a>
         </div>
 
@@ -405,3 +406,4 @@ $referral_link = $base_url . $user['id'];
 
 </body>
 </html>
+

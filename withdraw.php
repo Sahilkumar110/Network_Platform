@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $message = "";
+ensureUserCryptoAddressesTable($pdo);
 
 // Fetch current user data
 $stmt = $pdo->prepare("SELECT username, wallet_balance, last_withdrawal_date FROM users WHERE id = ?");
@@ -21,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = ["type" => "error", "text" => "Invalid session token. Please refresh and try again."];
     } else {
     $amount = (float)$_POST['amount'];
+    $network = normalizeNetwork($_POST['network'] ?? '');
     $min_balance_required = 200;
     
     // Check Weekly Constraint (7 days)
@@ -34,7 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    if ($amount <= 0) {
+    if (!isSupportedNetwork($network)) {
+        $message = ["type" => "error", "text" => "Please select a valid network."];
+    } elseif (empty(getVerifiedUserCryptoAddress($pdo, $user_id, $network))) {
+        $message = ["type" => "error", "text" => "Your {$network} address is not verified. Please verify it first in Crypto Address Profile."];
+    } elseif ($amount <= 0) {
         $message = ["type" => "error", "text" => "Withdrawal amount must be greater than $0."];
     } elseif ($user['wallet_balance'] < $min_balance_required) {
         $message = ["type" => "error", "text" => "You need at least $$min_balance_required in wallet to request withdrawal."];
@@ -58,8 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
             // 2. Save withdrawal request in dedicated withdrawals table
-            $log = $pdo->prepare("INSERT INTO withdrawals (user_id, amount, method, details, status, created_at) VALUES (?, ?, 'Wallet', 'Withdrawal request from dashboard', 'pending', NOW())");
-            $log->execute([$user_id, $amount]);
+            $verified_address = getVerifiedUserCryptoAddress($pdo, $user_id, $network);
+            $log = $pdo->prepare("INSERT INTO withdrawals (user_id, amount, method, details, status, created_at) VALUES (?, ?, ?, ?, 'pending', NOW())");
+            $log->execute([$user_id, $amount, $network, $verified_address]);
 
             $pdo->commit();
             
@@ -150,10 +157,20 @@ $withdrawals = $history_stmt->fetchAll();
 
         <form method="POST">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+            <label style="display:block; text-align:left; font-size:13px; font-weight:600; margin-bottom:5px;">Network</label>
+            <select name="network" required style="width:100%; padding:14px; border:2px solid #e2e8f0; border-radius:12px; font-size:16px; margin-bottom:10px;">
+                <option value="">Select network</option>
+                <option value="TRC20">TRC20</option>
+                <option value="BEP20">BEP20</option>
+                <option value="SOLANA">SOLANA</option>
+            </select>
             <label style="display:block; text-align:left; font-size:13px; font-weight:600; margin-bottom:5px;">Amount to Withdraw ($)</label>
             <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
             <button type="submit">Submit Withdrawal Request</button>
         </form>
+        <p style="font-size:12px; color:#64748b; margin-top:8px;">
+            Need verification? <a href="crypto_profile.php">Manage & Verify Your Crypto Addresses</a>
+        </p>
     </div>
 
     <div class="history-section">
