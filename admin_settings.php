@@ -24,6 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // 2. Fetch All Settings
 $stmt = $pdo->query("SELECT * FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+if (!isset($settings['min_withdrawal']) || $settings['min_withdrawal'] === '') {
+    $settings['min_withdrawal'] = '200';
+}
 ?>
 
 <!DOCTYPE html>
@@ -61,7 +64,7 @@ $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         <div class="form-group">
             <label>Minimum Withdrawal ($)</label>
-            <input type="number" step="1" name="settings[min_withdrawal]" value="<?php echo $settings['min_withdrawal']; ?>">
+            <input type="number" step="1" name="settings[min_withdrawal]" value="<?php echo htmlspecialchars((string)$settings['min_withdrawal']); ?>">
         </div>
 
         <button type="submit" class="save-btn">Save Changes</button>

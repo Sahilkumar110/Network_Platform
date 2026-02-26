@@ -58,51 +58,246 @@ $kyc = $stmt->fetch(PDO::FETCH_ASSOC);
 <!doctype html>
 <html lang="en">
 <head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KYC Verification</title>
     <style>
-        body { font-family: Arial, sans-serif; background:#f1f5f9; margin:0; padding:20px; }
-        .card { max-width:700px; margin:20px auto; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; }
-        input, select, button { width:100%; box-sizing:border-box; padding:10px; margin:8px 0; border:1px solid #cbd5e1; border-radius:8px; }
-        button { background:#1e3a8a; color:#fff; border:none; font-weight:700; cursor:pointer; }
-        .alert-success { background:#dcfce7; color:#166534; padding:10px; border-radius:8px; }
-        .alert-error { background:#fee2e2; color:#991b1b; padding:10px; border-radius:8px; }
+        :root {
+            --primary: #1e3a8a;
+            --secondary: #3b82f6;
+            --bg: #f8fafc;
+            --text: #0f172a;
+            --muted: #64748b;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            color: var(--text);
+        }
+        .main-header {
+            background: #ffffff;
+            padding: 0 20px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .nav-container {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .logo {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -1px;
+            text-decoration: none;
+        }
+        .logo span { color: var(--secondary); font-weight: 500; }
+        .back-btn {
+            text-decoration: none;
+            background: #e2e8f0;
+            color: #1e293b;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 26px 16px 40px;
+        }
+        .kyc-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        }
+        .kyc-title {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: -0.02em;
+        }
+        .kyc-sub {
+            margin: 8px 0 18px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .status-wrap {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 14px;
+            font-size: 13px;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            border: 1px solid #cbd5e1;
+            background: #f1f5f9;
+            color: #334155;
+        }
+        .status-approved {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #86efac;
+        }
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        .status-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fecaca;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .field-full { grid-column: 1 / -1; }
+        label {
+            font-size: 12px;
+            color: #475569;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        input, select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 14px;
+            background: #ffffff;
+            color: #0f172a;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 13px 16px;
+            background: linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 100%);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .alert-success, .alert-error {
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            border: 1px solid transparent;
+        }
+        .alert-success { background:#dcfce7; color:#166534; border-color:#86efac; }
+        .alert-error { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+        @media (max-width: 768px) {
+            .main-header { height: auto; padding: 10px 12px; }
+            .nav-container { gap: 8px; flex-wrap: wrap; }
+            .grid { grid-template-columns: 1fr; }
+            .kyc-title { font-size: 26px; }
+        }
     </style>
+    <link rel="stylesheet" href="responsive.css">
 </head>
 <body>
-    <div class="card">
-        <h2>KYC Verification</h2>
-        <p><a href="dashboard.php">Back to Dashboard</a></p>
+    <header class="main-header">
+        <div class="nav-container">
+            <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
+            <a href="dashboard.php" class="back-btn">Back to Dashboard</a>
+        </div>
+    </header>
+
+    <div class="container">
+    <div class="kyc-card">
+        <h2 class="kyc-title">KYC Verification</h2>
+        <p class="kyc-sub">Submit your verification details to unlock full platform features such as withdrawals and secure investment requests.</p>
         <?php if ($message): ?>
             <div class="alert-<?php echo htmlspecialchars($message['type']); ?>"><?php echo htmlspecialchars($message['text']); ?></div>
         <?php endif; ?>
-        <p>Status: <strong><?php echo htmlspecialchars(strtoupper((string)($kyc['status'] ?? 'not_submitted'))); ?></strong></p>
+        <?php $kyc_status = strtolower((string)($kyc['status'] ?? 'not_submitted')); ?>
+        <div class="status-wrap">
+            <div>Status:
+                <span class="status-badge <?php echo $kyc_status === 'approved' ? 'status-approved' : ($kyc_status === 'pending' ? 'status-pending' : ($kyc_status === 'rejected' ? 'status-rejected' : '')); ?>">
+                    <?php echo htmlspecialchars(strtoupper((string)($kyc['status'] ?? 'not_submitted'))); ?>
+                </span>
+            </div>
+        </div>
         <?php if (!empty($kyc['review_note'])): ?>
-            <p>Review Note: <?php echo htmlspecialchars((string)$kyc['review_note']); ?></p>
+            <div class="status-wrap">Review Note: <?php echo htmlspecialchars((string)$kyc['review_note']); ?></div>
         <?php endif; ?>
         <form method="post">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
-            <label>Full Name</label>
-            <input type="text" name="full_name" required value="<?php echo htmlspecialchars((string)($kyc['full_name'] ?? '')); ?>">
-            <label>Date of Birth</label>
-            <input type="date" name="date_of_birth" required value="<?php echo htmlspecialchars((string)($kyc['date_of_birth'] ?? '')); ?>">
-            <label>Country Code (2-letter)</label>
-            <input type="text" name="country_code" maxlength="2" required value="<?php echo htmlspecialchars((string)($kyc['country_code'] ?? '')); ?>">
-            <label>Document Type</label>
-            <select name="document_type" required>
-                <option value="">Select</option>
-                <option value="passport" <?php echo (($kyc['document_type'] ?? '') === 'passport') ? 'selected' : ''; ?>>Passport</option>
-                <option value="id_card" <?php echo (($kyc['document_type'] ?? '') === 'id_card') ? 'selected' : ''; ?>>ID Card</option>
-                <option value="driver_license" <?php echo (($kyc['document_type'] ?? '') === 'driver_license') ? 'selected' : ''; ?>>Driver License</option>
-            </select>
-            <label>Document Number</label>
-            <input type="text" name="document_number" required value="<?php echo htmlspecialchars((string)($kyc['document_number'] ?? '')); ?>">
-            <label>Document Reference URL (optional)</label>
-            <input type="text" name="document_ref" value="<?php echo htmlspecialchars((string)($kyc['document_ref'] ?? '')); ?>">
-            <button type="submit">Submit KYC</button>
+            <div class="grid">
+                <div class="field">
+                    <label>Full Name</label>
+                    <input type="text" name="full_name" required value="<?php echo htmlspecialchars((string)($kyc['full_name'] ?? '')); ?>">
+                </div>
+                <div class="field">
+                    <label>Date of Birth</label>
+                    <input type="date" name="date_of_birth" required value="<?php echo htmlspecialchars((string)($kyc['date_of_birth'] ?? '')); ?>">
+                </div>
+                <div class="field">
+                    <label>Country Code (2-letter)</label>
+                    <input type="text" name="country_code" maxlength="2" required value="<?php echo htmlspecialchars((string)($kyc['country_code'] ?? '')); ?>">
+                </div>
+                <div class="field">
+                    <label>Document Type</label>
+                    <select name="document_type" required>
+                        <option value="">Select</option>
+                        <option value="passport" <?php echo (($kyc['document_type'] ?? '') === 'passport') ? 'selected' : ''; ?>>Passport</option>
+                        <option value="id_card" <?php echo (($kyc['document_type'] ?? '') === 'id_card') ? 'selected' : ''; ?>>ID Card</option>
+                        <option value="driver_license" <?php echo (($kyc['document_type'] ?? '') === 'driver_license') ? 'selected' : ''; ?>>Driver License</option>
+                    </select>
+                </div>
+                <div class="field field-full">
+                    <label>Document Number</label>
+                    <input type="text" name="document_number" required value="<?php echo htmlspecialchars((string)($kyc['document_number'] ?? '')); ?>">
+                </div>
+                <div class="field field-full">
+                    <label>Document Reference URL (optional)</label>
+                    <input type="text" name="document_ref" value="<?php echo htmlspecialchars((string)($kyc['document_ref'] ?? '')); ?>">
+                </div>
+            </div>
+            <button type="submit" class="submit-btn">Submit KYC</button>
         </form>
     </div>
+    </div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="scroll_top.js"></script>
 </body>
 </html>

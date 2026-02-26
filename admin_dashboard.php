@@ -758,10 +758,10 @@ if (!function_exists('renderAdminPager')) {
                 <div class="profile-card">
                     <div class="profile-links">
                         <a class="profile-link" href="profile.php">Profile</a>
+                        <a class="profile-link" href="dashboard.php">User Dashboard</a>
                         <a class="profile-link" href="admin_withdrawals.php">Withdrawals</a>
                         <a class="profile-link" href="admin_ledger.php">Ledger</a>
                         <a class="profile-link" href="admin_compliance.php">Compliance</a>
-                        <a class="profile-link" href="dashboard.php">User Dashboard</a>
                         <a class="profile-link profile-link-danger" href="logout.php">Logout</a>
                     </div>
                 </div>

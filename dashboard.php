@@ -409,12 +409,12 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                 <div class="profile-card">
                     <div class="profile-links">
                         <a class="profile-link" href="profile.php">Profile</a>
-                        <a class="profile-link" href="crypto_profile.php">Crypto Profile</a>
-                        <a class="profile-link" href="kyc.php">KYC</a>
-                        <a class="profile-link" href="withdraw.php">Withdraw</a>
                         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                             <a class="profile-link" href="admin_dashboard.php">Admin Dashboard</a>
                         <?php endif; ?>
+                        <a class="profile-link" href="crypto_profile.php">Crypto Profile</a>
+                        <a class="profile-link" href="kyc.php">KYC</a>
+                        <a class="profile-link" href="withdraw.php">Withdraw</a>
                         <a class="profile-link profile-link-danger" href="logout.php">Logout</a>
                     </div>
                 </div>
