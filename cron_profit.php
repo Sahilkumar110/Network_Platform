@@ -25,11 +25,21 @@ try {
     $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $processed = 0;
+    $skipped = 0;
     $total_profit = 0.00;
+    $daily_description = "Daily 1% fixed on investment amount [{$today}]";
 
     $profit_log = $pdo->prepare(
         "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
-         VALUES (?, ?, 'daily_profit', NULL, 'Daily 1% fixed on investment amount', NOW())"
+         VALUES (?, ?, 'daily_profit', NULL, ?, NOW())"
+    );
+    $profit_exists = $pdo->prepare(
+        "SELECT id
+         FROM transactions
+         WHERE user_id = ?
+           AND type = 'daily_profit'
+           AND DATE(created_at) = ?
+         LIMIT 1"
     );
 
     foreach ($users as $user) {
@@ -38,16 +48,23 @@ try {
             continue;
         }
 
+        // Idempotent guard: ensure this user is credited only once per day.
+        $profit_exists->execute([(int)$user['id'], $today]);
+        if ($profit_exists->fetchColumn()) {
+            $skipped++;
+            continue;
+        }
+
         applyWalletDelta(
             $pdo,
             (int)$user['id'],
             $profit,
             'daily_profit',
-            'Daily 1% fixed on investment amount',
+            $daily_description,
             'cron_profit',
             null
         );
-        $profit_log->execute([$user['id'], $profit]);
+        $profit_log->execute([$user['id'], $profit, $daily_description]);
 
         $processed++;
         $total_profit += $profit;
@@ -60,7 +77,7 @@ try {
     $mark_run->execute([$today]);
 
     $pdo->commit();
-    $msg = "Daily profit processed for $processed users at $rate_percent%. Total credited: $" . number_format($total_profit, 2);
+    $msg = "Daily profit processed for $processed users at $rate_percent%. Skipped (already credited today): $skipped. Total credited: $" . number_format($total_profit, 2);
     logCronRun($pdo, 'cron_profit', 'success', $msg);
     echo $msg;
 } catch (Exception $e) {
