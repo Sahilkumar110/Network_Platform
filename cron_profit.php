@@ -2,6 +2,7 @@
 include 'db.php';
 include 'functions.php';
 ensureWalletLedgerTable($pdo);
+requireCronAccess();
 
 $today = date('Y-m-d');
 

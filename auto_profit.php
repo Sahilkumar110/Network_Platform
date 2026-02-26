@@ -7,6 +7,12 @@ ensureWalletLedgerTable($pdo);
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     die("Unauthorized");
 }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    die("Invalid request");
+}
+if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    die("Invalid session token");
+}
 
 // Configuration: Daily Profit Percentage (e.g., 1% = 0.01)
 $daily_rate = 0.01; 

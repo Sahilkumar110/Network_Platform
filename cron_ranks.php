@@ -1,6 +1,7 @@
 <?php
 include 'db.php';
 include 'functions.php';
+requireCronAccess();
 
 try {
     $pdo->beginTransaction();

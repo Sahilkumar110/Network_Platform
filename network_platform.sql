@@ -377,6 +377,21 @@ ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`referrer_id`) REFERENCES `users` (`id`);
 
 --
+-- Table structure for table `login_attempts`
+--
+CREATE TABLE IF NOT EXISTS `login_attempts` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) NOT NULL,
+  `ip_address` varchar(64) NOT NULL,
+  `is_success` tinyint(1) NOT NULL DEFAULT 0,
+  `attempted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_email_time` (`email`,`attempted_at`),
+  KEY `idx_ip_time` (`ip_address`,`attempted_at`),
+  KEY `idx_success_time` (`is_success`,`attempted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Table structure for table `wallet_ledger`
 --
 CREATE TABLE IF NOT EXISTS `wallet_ledger` (

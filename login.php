@@ -2,16 +2,34 @@
 session_start();
 include 'db.php';
 include 'functions.php';
+ensureLoginAttemptsTable($pdo);
 
 $error_message = "";
+$lockout_max_attempts = 5;
+$lockout_window_minutes = 15;
+$lockout_minutes = 15;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error_message = "Invalid session token. Please refresh and try again.";
     } else {
-    $email = trim($_POST['email']);
+    $email = strtolower(trim($_POST['email']));
     $password = $_POST['password'];
     $mode = $_POST['mode']; 
+    $client_ip = getClientIpAddress();
+
+    $lock = getLoginLockStatus(
+        $pdo,
+        $email,
+        $client_ip,
+        $lockout_max_attempts,
+        $lockout_window_minutes,
+        $lockout_minutes
+    );
+    if (!empty($lock['locked'])) {
+        $minutes_left = (int)ceil(((int)$lock['seconds_left']) / 60);
+        $error_message = "Too many failed attempts. Try again in {$minutes_left} minute(s).";
+    } else {
 
     $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
     $stmt->execute([$email]);
@@ -26,20 +44,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 if ($user['role'] === 'admin') {
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['role'] = 'admin';
+                    session_regenerate_id(true);
+                    recordLoginAttempt($pdo, $email, $client_ip, true);
                     header("Location: admin_dashboard.php");
                     exit();
                 } else {
+                    recordLoginAttempt($pdo, $email, $client_ip, false);
                     $error_message = "ACCESS DENIED: You do not have Admin rights.";
                 }
             } else {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role'] = $user['role'];
+                session_regenerate_id(true);
+                recordLoginAttempt($pdo, $email, $client_ip, true);
                 header("Location: dashboard.php");
                 exit();
             }
         }
     } else {
+        recordLoginAttempt($pdo, $email, $client_ip, false);
         $error_message = "Invalid email or password.";
+    }
     }
     }
 }

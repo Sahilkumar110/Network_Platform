@@ -10,6 +10,135 @@ function verifyCsrfToken($token) {
     return isset($_SESSION['csrf_token']) && is_string($token) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
+function ensureLoginAttemptsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS login_attempts (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            ip_address VARCHAR(64) NOT NULL,
+            is_success TINYINT(1) NOT NULL DEFAULT 0,
+            attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_email_time (email, attempted_at),
+            INDEX idx_ip_time (ip_address, attempted_at),
+            INDEX idx_success_time (is_success, attempted_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function getClientIpAddress() {
+    $keys = ['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'];
+    foreach ($keys as $key) {
+        if (!empty($_SERVER[$key])) {
+            $raw = trim((string)$_SERVER[$key]);
+            if ($key === 'HTTP_X_FORWARDED_FOR') {
+                $parts = explode(',', $raw);
+                return trim((string)$parts[0]);
+            }
+            return $raw;
+        }
+    }
+    return 'unknown';
+}
+
+function getLoginLockStatus($pdo, $email, $ip, $max_attempts = 5, $window_minutes = 15, $lockout_minutes = 15) {
+    $email = strtolower(trim((string)$email));
+    $ip = trim((string)$ip);
+    $window_minutes = max(1, (int)$window_minutes);
+    $max_attempts = max(1, (int)$max_attempts);
+    $lockout_minutes = max(1, (int)$lockout_minutes);
+
+    $by_email = $pdo->prepare(
+        "SELECT COUNT(*) AS fail_count, MAX(attempted_at) AS last_fail
+         FROM login_attempts
+         WHERE is_success = 0
+           AND email = ?
+           AND attempted_at >= (NOW() - INTERVAL {$window_minutes} MINUTE)"
+    );
+    $by_email->execute([$email]);
+    $email_row = $by_email->fetch(PDO::FETCH_ASSOC) ?: ['fail_count' => 0, 'last_fail' => null];
+
+    $by_ip = $pdo->prepare(
+        "SELECT COUNT(*) AS fail_count, MAX(attempted_at) AS last_fail
+         FROM login_attempts
+         WHERE is_success = 0
+           AND ip_address = ?
+           AND attempted_at >= (NOW() - INTERVAL {$window_minutes} MINUTE)"
+    );
+    $by_ip->execute([$ip]);
+    $ip_row = $by_ip->fetch(PDO::FETCH_ASSOC) ?: ['fail_count' => 0, 'last_fail' => null];
+
+    $is_email_locked = ((int)$email_row['fail_count'] >= $max_attempts) && !empty($email_row['last_fail']);
+    $is_ip_locked = ((int)$ip_row['fail_count'] >= $max_attempts) && !empty($ip_row['last_fail']);
+
+    if (!$is_email_locked && !$is_ip_locked) {
+        return ['locked' => false, 'seconds_left' => 0];
+    }
+
+    $last_fail_ts = 0;
+    if ($is_email_locked) {
+        $last_fail_ts = max($last_fail_ts, strtotime((string)$email_row['last_fail']));
+    }
+    if ($is_ip_locked) {
+        $last_fail_ts = max($last_fail_ts, strtotime((string)$ip_row['last_fail']));
+    }
+
+    $unlock_ts = $last_fail_ts + ($lockout_minutes * 60);
+    $seconds_left = max(0, $unlock_ts - time());
+    if ($seconds_left <= 0) {
+        return ['locked' => false, 'seconds_left' => 0];
+    }
+
+    return ['locked' => true, 'seconds_left' => $seconds_left];
+}
+
+function recordLoginAttempt($pdo, $email, $ip, $is_success) {
+    $email = strtolower(trim((string)$email));
+    $ip = trim((string)$ip);
+    $ins = $pdo->prepare(
+        "INSERT INTO login_attempts (email, ip_address, is_success, attempted_at)
+         VALUES (?, ?, ?, NOW())"
+    );
+    $ins->execute([$email, $ip, $is_success ? 1 : 0]);
+
+    if ($is_success) {
+        // Remove recent failures for this identity after successful login.
+        $clear = $pdo->prepare(
+            "DELETE FROM login_attempts
+             WHERE is_success = 0
+               AND (email = ? OR ip_address = ?)"
+        );
+        $clear->execute([$email, $ip]);
+    } else {
+        // Keep table size under control.
+        $cleanup = $pdo->prepare(
+            "DELETE FROM login_attempts
+             WHERE attempted_at < (NOW() - INTERVAL 30 DAY)"
+        );
+        $cleanup->execute();
+    }
+}
+
+function isProductionEnv() {
+    $env = strtolower(trim((string)(getenv('APP_ENV') ?: 'development')));
+    return in_array($env, ['prod', 'production'], true);
+}
+
+function requireCronAccess() {
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+    if (!isProductionEnv()) {
+        return;
+    }
+
+    $expected_token = trim((string)(getenv('CRON_SECRET') ?: ''));
+    $provided_token = trim((string)($_GET['token'] ?? ''));
+    if ($expected_token === '' || !hash_equals($expected_token, $provided_token)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+}
+
 function generateUniqueUserCode($pdo) {
     $year_suffix = date('y');
     for ($i = 0; $i < 50; $i++) {
