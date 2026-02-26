@@ -3,6 +3,7 @@ include 'db.php';
 include 'functions.php';
 ensureWalletLedgerTable($pdo);
 requireCronAccess();
+ensureCronRunsTable($pdo);
 
 $today = date('Y-m-d');
 
@@ -59,9 +60,14 @@ try {
     $mark_run->execute([$today]);
 
     $pdo->commit();
-    echo "Daily profit processed for $processed users at $rate_percent%. Total credited: $" . number_format($total_profit, 2);
+    $msg = "Daily profit processed for $processed users at $rate_percent%. Total credited: $" . number_format($total_profit, 2);
+    logCronRun($pdo, 'cron_profit', 'success', $msg);
+    echo $msg;
 } catch (Exception $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    logCronRun($pdo, 'cron_profit', 'failed', $e->getMessage());
     die("Error processing daily profit: " . $e->getMessage());
 }
 ?>

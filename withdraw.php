@@ -3,6 +3,8 @@ session_start();
 include 'db.php';
 include 'functions.php';
 ensureWalletLedgerTable($pdo);
+ensureKycProfilesTable($pdo);
+ensureComplianceEventsTable($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -35,6 +37,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (!isSupportedNetwork($network)) {
         $message = ["type" => "error", "text" => "Please select a valid network."];
+    } elseif (($kyc = getUserKycStatus($pdo, $user_id)) === null || ($kyc['status'] ?? '') !== 'verified') {
+        $message = ["type" => "error", "text" => "KYC verification is required before withdrawal."];
+    } elseif (isCountryRestricted($kyc['country_code'] ?? '')) {
+        logComplianceEvent($pdo, $user_id, 'withdrawal_blocked_country', 'high', 'Restricted country withdrawal attempt', ['country' => $kyc['country_code'] ?? '']);
+        $message = ["type" => "error", "text" => "Withdrawal is restricted for your country. Contact support."];
     } elseif (empty(getVerifiedUserCryptoAddress($pdo, $user_id, $network))) {
         $message = ["type" => "error", "text" => "Your {$network} address is not verified. Please verify it first in Crypto Address Profile."];
     } elseif (!$eligibility['eligible'] && $eligibility['reason'] === 'amount_invalid') {
@@ -49,6 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         try {
             $pdo->beginTransaction();
+
+            $risk = assessWithdrawalRisk($pdo, $user_id, $amount);
+            if (($risk['level'] ?? 'low') === 'high') {
+                logComplianceEvent($pdo, $user_id, 'withdrawal_risk_flag', 'high', 'High-risk withdrawal flagged', $risk);
+            } elseif (($risk['level'] ?? 'low') === 'medium') {
+                logComplianceEvent($pdo, $user_id, 'withdrawal_risk_flag', 'medium', 'Medium-risk withdrawal flagged', $risk);
+            }
 
             // 1. Save withdrawal request in dedicated withdrawals table
             $verified_address = getVerifiedUserCryptoAddress($pdo, $user_id, $network);
@@ -202,5 +216,6 @@ $withdrawals = $history_stmt->fetchAll();
 
 <script>lucide.createIcons();</script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scroll_top.js"></script>
 </body>
 </html>

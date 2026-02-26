@@ -9,6 +9,20 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit("Access Denied: You must be an Admin.");
 }
 backfillMissingUserCodes($pdo);
+ensureLoginAttemptsTable($pdo);
+ensureKycProfilesTable($pdo);
+ensureCronRunsTable($pdo);
+ensureLedgerReconciliationTable($pdo);
+ensureComplianceEventsTable($pdo);
+ensureInvestmentRequestsTable($pdo);
+ensureUserCryptoAddressesTable($pdo);
+$failed_logins_24h = 0;
+$pending_max_age_hours = 0;
+$last_cron_status = 'n/a';
+$last_cron_at = '-';
+$ledger_mismatch_users = 0;
+$ledger_mismatch_amount = 0.0;
+$last_reconcile_at = '-';
 
 $stmt_admin_user = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance, user_code FROM users WHERE id = ?");
 $stmt_admin_user->execute([$_SESSION['user_id']]);
@@ -31,6 +45,34 @@ try {
     // Total Manual Adjustments (From your new Transaction Log)
     $stmt_total_adj = $pdo->query("SELECT SUM(amount) as total FROM transaction_logs WHERE action_type = 'add'");
     $total_bonuses = $stmt_total_adj->fetch()['total'] ?? 0;
+
+    $failed24Stmt = $pdo->query("SELECT COUNT(*) AS c FROM login_attempts WHERE is_success = 0 AND attempted_at >= (NOW() - INTERVAL 24 HOUR)");
+    $failed_logins_24h = (int)($failed24Stmt->fetch()['c'] ?? 0);
+
+    $pendingAgeStmt = $pdo->query("
+        SELECT MAX(TIMESTAMPDIFF(HOUR, created_at, NOW())) AS max_age
+        FROM (
+            SELECT created_at FROM withdrawals WHERE status='pending'
+            UNION ALL
+            SELECT created_at FROM investment_requests WHERE status='pending'
+            UNION ALL
+            SELECT created_at FROM user_crypto_addresses WHERE status='pending'
+            UNION ALL
+            SELECT created_at FROM kyc_profiles WHERE status='pending'
+        ) p
+    ");
+    $pending_max_age_hours = (int)($pendingAgeStmt->fetch()['max_age'] ?? 0);
+
+    $cronStmt = $pdo->query("SELECT job_name, status, created_at FROM cron_runs ORDER BY created_at DESC LIMIT 1");
+    $last_cron = $cronStmt->fetch();
+    $last_cron_status = $last_cron['status'] ?? 'n/a';
+    $last_cron_at = $last_cron['created_at'] ?? '-';
+
+    $recStmt = $pdo->query("SELECT mismatched_users, total_mismatch_amount, created_at FROM ledger_reconciliation_reports ORDER BY id DESC LIMIT 1");
+    $last_rec = $recStmt->fetch();
+    $ledger_mismatch_users = (int)($last_rec['mismatched_users'] ?? 0);
+    $ledger_mismatch_amount = (float)($last_rec['total_mismatch_amount'] ?? 0);
+    $last_reconcile_at = $last_rec['created_at'] ?? '-';
 
 } catch (PDOException $e) {
     echo "Stats Error: " . $e->getMessage();
@@ -163,17 +205,21 @@ if (!function_exists('renderAdminPager')) {
     color: #1e3a8a;
     letter-spacing: -1px;
     text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .logo span {
     color: #3b82f6;
     font-weight: 400;
 }
+.logo-menu { position: relative; }
 
 .nav-right {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
 }
 
 .user-info {
@@ -211,6 +257,13 @@ if (!function_exists('renderAdminPager')) {
     font-size: 14px;
     transition: all 0.3s ease;
 }
+.profile-btn {
+    background: #1e3a8a;
+}
+.profile-btn:hover {
+    background: #1d4ed8;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+}
 
 .logout-btn:hover {
     background: #dc2626;
@@ -232,6 +285,20 @@ if (!function_exists('renderAdminPager')) {
 }
 .profile-row { font-size: 12px; color: #64748b; margin-bottom: 6px; }
 .profile-row strong { color: #0f172a; font-size: 13px; }
+.profile-links { margin-top: 8px; border-top: 1px solid #e2e8f0; padding-top: 8px; display: grid; gap: 6px; }
+.profile-link {
+    display: block;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.profile-link:hover { background: #eef2ff; }
+.profile-link-danger { color: #dc2626; }
 .search-form {
     display: flex;
     background: #f1f5f9;
@@ -263,6 +330,51 @@ if (!function_exists('renderAdminPager')) {
 
 .search-form button:hover {
     background: #3b82f6;
+}
+.investment-queue-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 10px 0 14px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    background: linear-gradient(180deg, #172033 0%, #111827 100%);
+}
+.investment-queue-search input[type="text"] {
+    flex: 1;
+    min-width: 280px;
+    border: 1px solid #475569;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+.investment-queue-search input[type="text"]::placeholder {
+    color: #94a3b8;
+}
+.investment-queue-search button {
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.investment-queue-search button:hover {
+    background: #1d4ed8;
+}
+.queue-clear-link {
+    color: #93c5fd;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+}
+.queue-clear-link:hover {
+    text-decoration: underline;
 }
 .btn-add {
     background: #10b981; /* Green */
@@ -547,6 +659,18 @@ if (!function_exists('renderAdminPager')) {
     .search-form {
         width: 100%;
     }
+    .investment-queue-search {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .investment-queue-search input[type="text"] {
+        min-width: 0;
+        width: 100%;
+    }
+    .investment-queue-search button {
+        width: 100%;
+        justify-content: center;
+    }
     .nav-right {
         width: 100%;
         display: grid;
@@ -610,9 +734,7 @@ if (!function_exists('renderAdminPager')) {
 <body class="admin-dashboard">
 <header class="main-header">
     <div class="nav-container">
-        <a href="index.php" class="logo">
-            NETWORK<span>PLATFORM</span>
-        </a>
+        <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
         <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
         <button type="button" class="mobile-search-toggle" aria-label="Toggle search" aria-expanded="false">&#128269;</button>
 
@@ -631,18 +753,17 @@ if (!function_exists('renderAdminPager')) {
                 <span class="role-badge admin-bg">ADMIN MODE</span>
                 <span class="user-email">ID: <?php echo htmlspecialchars($admin_user['user_code'] ?? ('#' . $_SESSION['user_id'])); ?></span>
             </div>
-            <a href="admin_withdrawals.php" class="logout-btn" style="background:#0f766e;">Withdrawals</a>
-            <a href="dashboard.php" class="logout-btn" style="background:#1e3a8a;">User Dashboard</a>
-            <a href="logout.php" class="logout-btn">Logout</a>
             <details class="profile-menu">
                 <summary class="profile-trigger"><?php echo htmlspecialchars($admin_avatar_initial); ?></summary>
                 <div class="profile-card">
-                    <div class="profile-row"><strong><?php echo htmlspecialchars($admin_user['username'] ?? 'Admin'); ?></strong></div>
-                    <div class="profile-row"><?php echo htmlspecialchars($admin_user['email'] ?? ''); ?></div>
-                    <div class="profile-row">Role: <?php echo htmlspecialchars($admin_user['role'] ?? 'admin'); ?></div>
-                    <div class="profile-row">Rank: <?php echo htmlspecialchars($admin_user['user_rank'] ?? 'Basic'); ?></div>
-                    <div class="profile-row">Wallet: $<?php echo number_format((float)($admin_user['wallet_balance'] ?? 0), 2); ?></div>
-                    <div class="profile-row">User ID: <?php echo htmlspecialchars($admin_user['user_code'] ?? ('#' . $_SESSION['user_id'])); ?></div>
+                    <div class="profile-links">
+                        <a class="profile-link" href="profile.php">Profile</a>
+                        <a class="profile-link" href="admin_withdrawals.php">Withdrawals</a>
+                        <a class="profile-link" href="admin_ledger.php">Ledger</a>
+                        <a class="profile-link" href="admin_compliance.php">Compliance</a>
+                        <a class="profile-link" href="dashboard.php">User Dashboard</a>
+                        <a class="profile-link profile-link-danger" href="logout.php">Logout</a>
+                    </div>
                 </div>
             </details>
         </div>
@@ -690,6 +811,29 @@ if (!function_exists('renderAdminPager')) {
         <span class="stat-label">Bonuses Issued</span>
         <div class="stat-value stat-value-accent">$<?php echo number_format($total_bonuses, 2); ?></div>
         <span class="stat-sub">Manual Adjustments</span>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-top:12px;">
+    <div class="stat-card">
+        <span class="stat-label">Failed Logins (24h)</span>
+        <div class="stat-value"><?php echo number_format($failed_logins_24h); ?></div>
+        <span class="stat-sub">Security pressure indicator</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Oldest Pending Age</span>
+        <div class="stat-value"><?php echo number_format($pending_max_age_hours); ?>h</div>
+        <span class="stat-sub">Pending approvals aging</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Last Cron</span>
+        <div class="stat-value"><?php echo htmlspecialchars(strtoupper((string)$last_cron_status)); ?></div>
+        <span class="stat-sub"><?php echo htmlspecialchars((string)$last_cron_at); ?></span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Wallet Mismatch Alerts</span>
+        <div class="stat-value"><?php echo number_format($ledger_mismatch_users); ?></div>
+        <span class="stat-sub">$<?php echo number_format($ledger_mismatch_amount, 2); ?> (<?php echo htmlspecialchars((string)$last_reconcile_at); ?>)</span>
     </div>
 </div>
 
@@ -857,6 +1001,16 @@ $stmt_crypto = $pdo->query("
 ");
 $pending_crypto = $stmt_crypto->fetchAll();
 
+// Fetch pending KYC requests
+$stmt_kyc = $pdo->query("
+    SELECT k.id, k.user_id, k.full_name, k.country_code, k.document_type, k.document_number, k.status, k.created_at, u.username, u.email, u.user_code
+    FROM kyc_profiles k
+    JOIN users u ON k.user_id = u.id
+    WHERE k.status = 'pending'
+    ORDER BY k.created_at DESC
+");
+$pending_kyc = $stmt_kyc->fetchAll();
+
 // Fetch pending withdrawal requests
 $stmt_withdrawals = $pdo->query("
     SELECT w.id, w.user_id, w.amount, w.method, w.details, w.status, w.created_at, u.username, u.email
@@ -868,26 +1022,31 @@ $stmt_withdrawals = $pdo->query("
 $pending_withdrawals = $stmt_withdrawals->fetchAll();
 
 $crypto_page = max(1, (int)($_GET['crypto_page'] ?? 1));
+$kyc_page = max(1, (int)($_GET['kyc_page'] ?? 1));
 $investments_page = max(1, (int)($_GET['investments_page'] ?? 1));
 $withdrawals_page = max(1, (int)($_GET['withdrawals_page'] ?? 1));
 $logs_page = max(1, (int)($_GET['logs_page'] ?? 1));
 
 $pending_crypto_total = count($pending_crypto);
+$pending_kyc_total = count($pending_kyc);
 $pending_investments_total = count($pending_investments);
 $pending_withdrawals_total = count($pending_withdrawals);
 $logs_total = count($logs);
 
 $pending_crypto_pages = max(1, (int)ceil($pending_crypto_total / $dashboard_limit));
+$pending_kyc_pages = max(1, (int)ceil($pending_kyc_total / $dashboard_limit));
 $pending_investments_pages = max(1, (int)ceil($pending_investments_total / $dashboard_limit));
 $pending_withdrawals_pages = max(1, (int)ceil($pending_withdrawals_total / $dashboard_limit));
 $logs_pages = max(1, (int)ceil($logs_total / $dashboard_limit));
 
 $crypto_page = min($crypto_page, $pending_crypto_pages);
+$kyc_page = min($kyc_page, $pending_kyc_pages);
 $investments_page = min($investments_page, $pending_investments_pages);
 $withdrawals_page = min($withdrawals_page, $pending_withdrawals_pages);
 $logs_page = min($logs_page, $logs_pages);
 
 $pending_crypto_display = array_slice($pending_crypto, ($crypto_page - 1) * $dashboard_limit, $dashboard_limit);
+$pending_kyc_display = array_slice($pending_kyc, ($kyc_page - 1) * $dashboard_limit, $dashboard_limit);
 $pending_investments_display = array_slice($pending_investments, ($investments_page - 1) * $dashboard_limit, $dashboard_limit);
 $pending_withdrawals_display = array_slice($pending_withdrawals, ($withdrawals_page - 1) * $dashboard_limit, $dashboard_limit);
 $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboard_limit);
@@ -930,14 +1089,54 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     </table>
     <?php echo renderAdminPager('crypto_page', $crypto_page, $pending_crypto_pages); ?>
 
+    <div class="section-head"><h3>Pending KYC Verifications</h3></div>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>User</th>
+                <th>Full Name</th>
+                <th>Country</th>
+                <th>Document</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (empty($pending_kyc_display)): ?>
+                <tr><td colspan="6" style="text-align:center;">No pending KYC requests</td></tr>
+            <?php else: foreach ($pending_kyc_display as $k): ?>
+                <tr>
+                    <td><?php echo date('M d, Y H:i', strtotime($k['created_at'])); ?></td>
+                    <td><?php echo htmlspecialchars($k['username']) . " (" . htmlspecialchars($k['user_code']) . ")<br><small>" . htmlspecialchars($k['email']) . "</small>"; ?></td>
+                    <td><?php echo htmlspecialchars($k['full_name']); ?></td>
+                    <td><?php echo htmlspecialchars($k['country_code']); ?></td>
+                    <td><?php echo htmlspecialchars($k['document_type']) . " / " . htmlspecialchars($k['document_number']); ?></td>
+                    <td>
+                        <form action="handle_kyc.php" method="POST" style="display:flex; gap:6px; align-items:center;">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+                            <input type="hidden" name="kyc_id" value="<?php echo (int)$k['id']; ?>">
+                            <input type="text" name="review_note" placeholder="Note" style="max-width:120px;">
+                            <button type="submit" name="decision" value="approve" class="btn-add">Approve</button>
+                            <button type="submit" name="decision" value="reject" class="btn-sub">Reject</button>
+                        </form>
+                    </td>
+                </tr>
+            <?php endforeach; endif; ?>
+        </tbody>
+    </table>
+    <?php echo renderAdminPager('kyc_page', $kyc_page, $pending_kyc_pages); ?>
+
     <div class="section-head"><h3>Pending Investment Requests</h3></div>
-    <form action="admin_dashboard.php" method="GET" class="search-form" style="margin-bottom:10px;">
+    <form action="admin_dashboard.php" method="GET" class="investment-queue-search">
         <input type="text" name="investment_search" value="<?php echo htmlspecialchars($investment_search); ?>" placeholder="Search user, email, user code, tx hash, network, or user ID">
         <input type="hidden" name="investments_page" value="1">
         <?php if (!empty($search)): ?>
             <input type="hidden" name="search" value="<?php echo htmlspecialchars($search); ?>">
         <?php endif; ?>
         <button type="submit">Search Queue</button>
+        <?php if ($investment_search !== ''): ?>
+            <a class="queue-clear-link" href="<?php echo htmlspecialchars(adminDashboardLink(['investment_search' => null, 'investments_page' => 1])); ?>">Clear Filter</a>
+        <?php endif; ?>
     </form>
     <table class="log-table">
         <thead>
@@ -1052,6 +1251,8 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
             <div class="site-footer-links">
                 <a href="admin_dashboard.php">Dashboard</a>
                 <a href="admin_withdrawals.php">Withdrawals</a>
+                <a href="admin_ledger.php">Ledger</a>
+                <a href="admin_compliance.php">Compliance</a>
                 <a href="admin_settings.php">Settings</a>
                 <a href="contact.php">Support Contacts</a>
             </div>
@@ -1130,8 +1331,17 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                 btn.setAttribute('aria-expanded', 'false');
             });
         });
+
+        document.addEventListener('click', function (e) {
+            document.querySelectorAll('.profile-menu').forEach(function (menu) {
+                if (!menu.contains(e.target)) {
+                    menu.removeAttribute('open');
+                }
+            });
+        });
     })();
 </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scroll_top.js"></script>
 </body>
 </html>

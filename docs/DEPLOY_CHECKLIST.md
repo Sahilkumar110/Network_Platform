@@ -8,6 +8,10 @@
   - `APP_DEBUG=false`
   - `DB_*` values
   - `CRON_SECRET` strong random token
+  - `DEPOSIT_AUTO_VERIFY=false` (set `true` after API keys and test verification)
+  - `BSCSCAN_API_KEY`, `SOLANA_RPC_URL`, `TRONGRID_API_BASE`
+  - `DEPOSIT_ADDRESS_*` values
+  - `MAIL_FROM` (+ Telegram vars if used)
 - [ ] Ensure `storage/logs` and `storage/backups` are writable
 
 ## 2. Database
@@ -28,15 +32,21 @@ php migrate.php
 - [ ] Admin login
 - [ ] Investment request submit + admin approval
 - [ ] Daily profit run (cron/manual in staging)
+- [ ] On-chain investment verification works for submitted tx hash
 - [ ] Withdrawal request + admin approve/reject
+- [ ] KYC submit + admin approve/reject
 
 ## 5. Backups
 - [ ] Run backup once manually
 - [ ] Confirm backup file created in `storage/backups`
 - [ ] Schedule daily backup task
+- [ ] Schedule crons:
+  - `cron_profit.php`
+  - `cron_ranks.php`
+  - `cron_notifications.php`
+  - `cron_reconcile.php`
 
 ## 6. Post-Deploy Monitoring
 - [ ] Check `storage/logs/app.log` for errors
 - [ ] Check DB connection and cron execution logs
 - [ ] Validate first live transactions
-

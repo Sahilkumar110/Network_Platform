@@ -3,6 +3,7 @@ session_start();
 include 'db.php';
 include 'functions.php';
 ensureWalletLedgerTable($pdo);
+ensureNotificationQueueTable($pdo);
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -49,6 +50,14 @@ try {
     if ($decision === 'approve') {
         $update = $pdo->prepare("UPDATE withdrawals SET status = 'approved' WHERE id = ?");
         $update->execute([$withdrawal_id]);
+        queueUserNotification(
+            $pdo,
+            (int)$withdrawal['user_id'],
+            'withdrawal_approved',
+            'Withdrawal Approved',
+            'Your withdrawal request has been approved.',
+            ['withdrawal_id' => (int)$withdrawal['id'], 'amount' => (float)$withdrawal['amount']]
+        );
     } else {
         $update = $pdo->prepare("UPDATE withdrawals SET status = 'rejected' WHERE id = ?");
         $update->execute([$withdrawal_id]);
@@ -61,6 +70,14 @@ try {
             'Withdrawal rejected by admin and refunded',
             'withdrawals',
             (int)$withdrawal['id']
+        );
+        queueUserNotification(
+            $pdo,
+            (int)$withdrawal['user_id'],
+            'withdrawal_rejected',
+            'Withdrawal Rejected',
+            'Your withdrawal request was rejected and funds were returned to your wallet.',
+            ['withdrawal_id' => (int)$withdrawal['id'], 'amount' => (float)$withdrawal['amount']]
         );
     }
 

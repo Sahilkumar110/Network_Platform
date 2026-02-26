@@ -235,6 +235,13 @@ function updateUserRank($pdo, $user_id) {
     if ((string)$row['user_rank'] !== $calculated_rank) {
         $update = $pdo->prepare("UPDATE users SET user_rank = ? WHERE id = ?");
         $update->execute([$calculated_rank, (int)$user_id]);
+        queueUserNotification(
+            $pdo,
+            (int)$user_id,
+            'rank_upgrade',
+            'Rank Updated',
+            "Your rank is now {$calculated_rank}."
+        );
     }
     return $calculated_rank;
 }
@@ -318,6 +325,360 @@ function ensureWalletLedgerTable($pdo) {
             INDEX idx_entry_type (entry_type)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+}
+
+function ensureNotificationQueueTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS notification_queue (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NULL,
+            email_to VARCHAR(255) DEFAULT NULL,
+            channel ENUM('email','telegram') NOT NULL,
+            event_type VARCHAR(60) NOT NULL,
+            subject VARCHAR(255) DEFAULT NULL,
+            message TEXT NOT NULL,
+            payload_json TEXT DEFAULT NULL,
+            status ENUM('pending','sent','failed') NOT NULL DEFAULT 'pending',
+            attempts INT NOT NULL DEFAULT 0,
+            last_error VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            sent_at TIMESTAMP NULL DEFAULT NULL,
+            INDEX idx_status_created (status, created_at),
+            INDEX idx_event_type (event_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureKycProfilesTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS kyc_profiles (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            full_name VARCHAR(120) NOT NULL,
+            date_of_birth DATE NOT NULL,
+            country_code VARCHAR(2) NOT NULL,
+            document_type VARCHAR(40) NOT NULL,
+            document_number VARCHAR(120) NOT NULL,
+            document_ref VARCHAR(255) DEFAULT NULL,
+            status ENUM('pending','verified','rejected') NOT NULL DEFAULT 'pending',
+            review_note VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            reviewed_at TIMESTAMP NULL DEFAULT NULL,
+            UNIQUE KEY uniq_user_kyc (user_id),
+            INDEX idx_status_created (status, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureComplianceEventsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS compliance_events (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            event_type VARCHAR(60) NOT NULL,
+            severity ENUM('info','medium','high') NOT NULL DEFAULT 'info',
+            details VARCHAR(255) DEFAULT NULL,
+            payload_json TEXT DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_created (user_id, created_at),
+            INDEX idx_severity_created (severity, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureCronRunsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS cron_runs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            job_name VARCHAR(80) NOT NULL,
+            status ENUM('success','failed') NOT NULL,
+            details VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_job_created (job_name, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureLedgerReconciliationTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS ledger_reconciliation_reports (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            total_users INT NOT NULL,
+            mismatched_users INT NOT NULL,
+            total_mismatch_amount DECIMAL(15,2) NOT NULL DEFAULT 0,
+            status ENUM('ok','warning') NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS ledger_reconciliation_items (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            report_id BIGINT NOT NULL,
+            user_id INT NOT NULL,
+            wallet_balance DECIMAL(15,2) NOT NULL,
+            ledger_balance DECIMAL(15,2) NOT NULL,
+            difference DECIMAL(15,2) NOT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_report_user (report_id, user_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function queueNotification($pdo, $channel, $event_type, $subject, $message, $user_id = null, $email_to = null, $payload = null) {
+    ensureNotificationQueueTable($pdo);
+    $stmt = $pdo->prepare(
+        "INSERT INTO notification_queue (user_id, email_to, channel, event_type, subject, message, payload_json, status, attempts, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NOW())"
+    );
+    $stmt->execute([
+        $user_id ? (int)$user_id : null,
+        $email_to,
+        (string)$channel,
+        (string)$event_type,
+        $subject,
+        $message,
+        $payload ? json_encode($payload) : null
+    ]);
+}
+
+function queueUserNotification($pdo, $user_id, $event_type, $subject, $message, $payload = null) {
+    $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([(int)$user_id]);
+    $email = $stmt->fetchColumn();
+    if (!empty($email)) {
+        queueNotification($pdo, 'email', $event_type, $subject, $message, (int)$user_id, (string)$email, $payload);
+    }
+
+    $telegramEnabled = strtolower((string)(getenv('NOTIFY_TELEGRAM_ENABLED') ?: 'false'));
+    if (in_array($telegramEnabled, ['1', 'true', 'yes', 'on'], true)) {
+        queueNotification($pdo, 'telegram', $event_type, $subject, $message, (int)$user_id, null, $payload);
+    }
+}
+
+function logComplianceEvent($pdo, $user_id, $event_type, $severity = 'info', $details = null, $payload = null) {
+    ensureComplianceEventsTable($pdo);
+    $stmt = $pdo->prepare(
+        "INSERT INTO compliance_events (user_id, event_type, severity, details, payload_json, created_at)
+         VALUES (?, ?, ?, ?, ?, NOW())"
+    );
+    $stmt->execute([
+        (int)$user_id,
+        (string)$event_type,
+        (string)$severity,
+        $details,
+        $payload ? json_encode($payload) : null
+    ]);
+}
+
+function getUserKycStatus($pdo, $user_id) {
+    ensureKycProfilesTable($pdo);
+    $stmt = $pdo->prepare("SELECT status, country_code FROM kyc_profiles WHERE user_id = ? LIMIT 1");
+    $stmt->execute([(int)$user_id]);
+    return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function isCountryRestricted($country_code) {
+    $country_code = strtoupper(trim((string)$country_code));
+    if ($country_code === '') {
+        return false;
+    }
+    $raw = (string)(getenv('RESTRICTED_COUNTRIES') ?: 'KP,IR,SY,CU');
+    $list = array_filter(array_map('trim', explode(',', strtoupper($raw))));
+    return in_array($country_code, $list, true);
+}
+
+function assessWithdrawalRisk($pdo, $user_id, $amount) {
+    $score = 0;
+    $reasons = [];
+    $amount = (float)$amount;
+    if ($amount >= (float)(getenv('WITHDRAWAL_HIGH_RISK_AMOUNT') ?: 1000)) {
+        $score += 2;
+        $reasons[] = 'large_amount';
+    }
+
+    $stmt = $pdo->prepare("SELECT created_at FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([(int)$user_id]);
+    $created = $stmt->fetchColumn();
+    if ($created && strtotime((string)$created) > strtotime('-7 days')) {
+        $score += 1;
+        $reasons[] = 'new_account';
+    }
+
+    $pending = $pdo->prepare("SELECT COUNT(*) FROM withdrawals WHERE user_id = ? AND status = 'pending'");
+    $pending->execute([(int)$user_id]);
+    $pendingCount = (int)$pending->fetchColumn();
+    if ($pendingCount >= 2) {
+        $score += 1;
+        $reasons[] = 'multiple_pending_withdrawals';
+    }
+
+    $level = $score >= 3 ? 'high' : ($score >= 1 ? 'medium' : 'low');
+    return ['level' => $level, 'score' => $score, 'reasons' => $reasons];
+}
+
+function logCronRun($pdo, $job_name, $status, $details = null) {
+    ensureCronRunsTable($pdo);
+    $stmt = $pdo->prepare("INSERT INTO cron_runs (job_name, status, details, created_at) VALUES (?, ?, ?, NOW())");
+    $stmt->execute([(string)$job_name, (string)$status, $details]);
+}
+
+function runWalletReconciliation($pdo) {
+    ensureLedgerReconciliationTable($pdo);
+    ensureWalletLedgerTable($pdo);
+
+    $usersStmt = $pdo->query("SELECT id, wallet_balance FROM users");
+    $users = $usersStmt->fetchAll(PDO::FETCH_ASSOC);
+    $totalUsers = count($users);
+    $mismatchCount = 0;
+    $totalMismatchAmount = 0.0;
+    $items = [];
+
+    $ledgerStmt = $pdo->prepare(
+        "SELECT balance_after FROM wallet_ledger WHERE user_id = ? ORDER BY id DESC LIMIT 1"
+    );
+
+    foreach ($users as $u) {
+        $uid = (int)$u['id'];
+        $wallet = round((float)$u['wallet_balance'], 2);
+        $ledgerStmt->execute([$uid]);
+        $ledgerBalRaw = $ledgerStmt->fetchColumn();
+        $ledgerBal = $ledgerBalRaw === false ? 0.0 : round((float)$ledgerBalRaw, 2);
+        $diff = round($wallet - $ledgerBal, 2);
+        if (abs($diff) > 0.009) {
+            $mismatchCount++;
+            $totalMismatchAmount += abs($diff);
+            $items[] = ['user_id' => $uid, 'wallet' => $wallet, 'ledger' => $ledgerBal, 'diff' => $diff];
+        }
+    }
+
+    $status = $mismatchCount > 0 ? 'warning' : 'ok';
+    $rep = $pdo->prepare(
+        "INSERT INTO ledger_reconciliation_reports (total_users, mismatched_users, total_mismatch_amount, status, created_at)
+         VALUES (?, ?, ?, ?, NOW())"
+    );
+    $rep->execute([$totalUsers, $mismatchCount, round($totalMismatchAmount, 2), $status]);
+    $reportId = (int)$pdo->lastInsertId();
+
+    if (!empty($items)) {
+        $ins = $pdo->prepare(
+            "INSERT INTO ledger_reconciliation_items (report_id, user_id, wallet_balance, ledger_balance, difference, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW())"
+        );
+        foreach ($items as $it) {
+            $ins->execute([$reportId, $it['user_id'], $it['wallet'], $it['ledger'], $it['diff']]);
+        }
+    }
+
+    return ['report_id' => $reportId, 'status' => $status, 'mismatched_users' => $mismatchCount];
+}
+
+function getPlatformDepositAddresses() {
+    return [
+        'TRC20' => trim((string)(getenv('DEPOSIT_ADDRESS_TRC20') ?: 'TXYZ1234567890abcdefghijklmnopqrstuvwxy')),
+        'BEP20' => trim((string)(getenv('DEPOSIT_ADDRESS_BEP20') ?: '0x1234567890abcdef1234567890abcdef12345678')),
+        'SOLANA' => trim((string)(getenv('DEPOSIT_ADDRESS_SOLANA') ?: 'HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH')),
+    ];
+}
+
+function httpJsonRequest($method, $url, $payload = null, $headers = []) {
+    $method = strtoupper((string)$method);
+    $defaultHeaders = ["Accept: application/json"];
+    if ($payload !== null) {
+        $defaultHeaders[] = "Content-Type: application/json";
+    }
+    $allHeaders = array_merge($defaultHeaders, $headers);
+    $opts = [
+        'http' => [
+            'method' => $method,
+            'header' => implode("\r\n", $allHeaders),
+            'timeout' => 20,
+            'ignore_errors' => true
+        ]
+    ];
+    if ($payload !== null) {
+        $opts['http']['content'] = json_encode($payload);
+    }
+    $ctx = stream_context_create($opts);
+    $raw = @file_get_contents($url, false, $ctx);
+    if ($raw === false) {
+        return [null, null];
+    }
+    $decoded = json_decode($raw, true);
+    $status = null;
+    if (!empty($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) {
+        $status = (int)$m[1];
+    }
+    return [$status, $decoded];
+}
+
+function verifyOnChainTransaction($network, $tx_hash, $expected_to_address = null) {
+    $network = normalizeNetwork($network);
+    $tx_hash = trim((string)$tx_hash);
+    if (!validateTxHashFormat($network, $tx_hash)) {
+        return ['ok' => false, 'reason' => 'invalid_tx_hash_format'];
+    }
+
+    if ($network === 'BEP20') {
+        $apiKey = trim((string)(getenv('BSCSCAN_API_KEY') ?: ''));
+        $base = trim((string)(getenv('BSCSCAN_API_BASE') ?: 'https://api.bscscan.com/api'));
+        if ($apiKey === '') {
+            return ['ok' => false, 'reason' => 'missing_bsc_api_key'];
+        }
+
+        $txUrl = $base . '?module=proxy&action=eth_getTransactionByHash&txhash=' . urlencode($tx_hash) . '&apikey=' . urlencode($apiKey);
+        $rcpUrl = $base . '?module=proxy&action=eth_getTransactionReceipt&txhash=' . urlencode($tx_hash) . '&apikey=' . urlencode($apiKey);
+        [, $txRes] = httpJsonRequest('GET', $txUrl);
+        [, $rcpRes] = httpJsonRequest('GET', $rcpUrl);
+        $tx = $txRes['result'] ?? null;
+        $rcp = $rcpRes['result'] ?? null;
+        if (empty($tx) || empty($rcp)) {
+            return ['ok' => false, 'reason' => 'tx_not_found'];
+        }
+        if (strtolower((string)($rcp['status'] ?? '0x0')) !== '0x1') {
+            return ['ok' => false, 'reason' => 'tx_failed'];
+        }
+        if (!empty($expected_to_address)) {
+            $to = strtolower((string)($tx['to'] ?? ''));
+            if ($to !== strtolower((string)$expected_to_address)) {
+                $input = strtolower((string)($tx['input'] ?? ''));
+                $isTransfer = substr($input, 0, 10) === '0xa9059cbb';
+                if (!$isTransfer) {
+                    return ['ok' => false, 'reason' => 'destination_mismatch'];
+                }
+            }
+        }
+        return ['ok' => true, 'reason' => 'verified'];
+    }
+
+    if ($network === 'TRC20') {
+        $base = trim((string)(getenv('TRONGRID_API_BASE') ?: 'https://api.trongrid.io'));
+        $url = rtrim($base, '/') . '/v1/transactions/' . urlencode($tx_hash);
+        [, $res] = httpJsonRequest('GET', $url);
+        $row = $res['data'][0] ?? null;
+        $status = strtoupper((string)($row['ret'][0]['contractRet'] ?? ''));
+        if (empty($row) || $status !== 'SUCCESS') {
+            return ['ok' => false, 'reason' => 'tx_not_success'];
+        }
+        return ['ok' => true, 'reason' => 'verified'];
+    }
+
+    if ($network === 'SOLANA') {
+        $rpc = trim((string)(getenv('SOLANA_RPC_URL') ?: 'https://api.mainnet-beta.solana.com'));
+        $payload = [
+            'jsonrpc' => '2.0',
+            'id' => 1,
+            'method' => 'getTransaction',
+            'params' => [$tx_hash, ['maxSupportedTransactionVersion' => 0]]
+        ];
+        [, $res] = httpJsonRequest('POST', $rpc, $payload);
+        $tx = $res['result'] ?? null;
+        if (empty($tx) || !empty($tx['meta']['err'])) {
+            return ['ok' => false, 'reason' => 'tx_not_success'];
+        }
+        return ['ok' => true, 'reason' => 'verified'];
+    }
+
+    return ['ok' => false, 'reason' => 'unsupported_network'];
 }
 
 function applyWalletDelta(

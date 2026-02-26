@@ -11,12 +11,9 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $message = "";
 ensureInvestmentRequestsTable($pdo);
+ensureKycProfilesTable($pdo);
 
-$addresses = [
-    'TRC20' => 'TXYZ1234567890abcdefghijklmnopqrstuvwxy',
-    'BEP20' => '0x1234567890abcdef1234567890abcdef12345678',
-    'SOLANA' => 'HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH',
-];
+$addresses = getPlatformDepositAddresses();
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -28,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($amount >= 100 && isset($addresses[$network]) && $tx_hash !== '' && isSupportedNetwork($network)) {
         try {
+            $kyc = getUserKycStatus($pdo, $user_id);
+            if (empty($kyc) || ($kyc['status'] ?? '') !== 'verified') {
+                throw new Exception("KYC must be verified before submitting investment requests.");
+            }
             assertValidTxHashFormat($network, $tx_hash);
             if (investmentTxHashExists($pdo, $network, $tx_hash)) {
                 throw new Exception("Duplicate transaction hash. This TX hash has already been submitted.");
@@ -137,5 +138,6 @@ $requests = $history_stmt->fetchAll(PDO::FETCH_ASSOC);
         <a href="dashboard.php">Back to Dashboard</a>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scroll_top.js"></script>
 </body>
 </html>

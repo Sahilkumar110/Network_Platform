@@ -3,6 +3,7 @@ session_start();
 include 'db.php';
 include 'functions.php';
 ensureLoginAttemptsTable($pdo);
+ensureNotificationQueueTable($pdo);
 
 $error_message = "";
 $lockout_max_attempts = 5;
@@ -29,6 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!empty($lock['locked'])) {
         $minutes_left = (int)ceil(((int)$lock['seconds_left']) / 60);
         $error_message = "Too many failed attempts. Try again in {$minutes_left} minute(s).";
+        queueNotification(
+            $pdo,
+            'email',
+            'security_alert',
+            'Security Alert: Login Lockout',
+            "A login lockout was triggered for email {$email} from IP {$client_ip}.",
+            null,
+            $email,
+            ['ip' => $client_ip, 'minutes_left' => $minutes_left]
+        );
     } else {
 
     $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
@@ -228,5 +239,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scroll_top.js"></script>
 </body>
 </html>

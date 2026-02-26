@@ -111,6 +111,14 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
         }
         .profile-row { font-size: 12px; color: var(--text-light); margin-bottom: 6px; }
         .profile-row strong { color: var(--text-dark); font-size: 13px; }
+        .profile-links { margin-top: 2px; display: grid; gap: 6px; }
+        .profile-link {
+            display:block; text-decoration:none; font-size:12px; font-weight:700;
+            color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0;
+            border-radius:8px; padding:8px 10px;
+        }
+        .profile-link:hover { background:#eef2ff; }
+        .profile-link-danger { color:#dc2626; }
 
         /* Stats Grid */
         .stats-grid {
@@ -396,19 +404,19 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                 </span>
                 <span class="user-email">ID: <?php echo htmlspecialchars($user['user_code']); ?></span>
             </div>
-            <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                <a href="admin_dashboard.php" class="logout-btn" style="background:#1e3a8a;">Admin Dashboard</a>
-            <?php endif; ?>
-            <a href="logout.php" class="logout-btn">Logout</a>
             <details class="profile-menu">
                 <summary class="profile-trigger"><?php echo htmlspecialchars($avatar_initial); ?></summary>
                 <div class="profile-card">
-                    <div class="profile-row"><strong><?php echo htmlspecialchars($user['username']); ?></strong></div>
-                    <div class="profile-row"><?php echo htmlspecialchars($user['email']); ?></div>
-                    <div class="profile-row">Role: <?php echo htmlspecialchars($user['role']); ?></div>
-                    <div class="profile-row">Rank: <?php echo htmlspecialchars($user['user_rank']); ?></div>
-                    <div class="profile-row">Wallet: $<?php echo number_format((float)$user['wallet_balance'], 2); ?></div>
-                    <div class="profile-row">User ID: <?php echo htmlspecialchars($user['user_code']); ?></div>
+                    <div class="profile-links">
+                        <a class="profile-link" href="profile.php">Profile</a>
+                        <a class="profile-link" href="crypto_profile.php">Crypto Profile</a>
+                        <a class="profile-link" href="kyc.php">KYC</a>
+                        <a class="profile-link" href="withdraw.php">Withdraw</a>
+                        <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
+                            <a class="profile-link" href="admin_dashboard.php">Admin Dashboard</a>
+                        <?php endif; ?>
+                        <a class="profile-link profile-link-danger" href="logout.php">Logout</a>
+                    </div>
                 </div>
             </details>
         </div>
@@ -436,6 +444,9 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
             </p>
             <a href="crypto_profile.php" style="display:inline-block; margin-top:8px; text-decoration:none; background:#0f766e; color:white; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">
                 Crypto Address Profile
+            </a>
+            <a href="kyc.php" style="display:inline-block; margin-top:8px; margin-left:6px; text-decoration:none; background:#1d4ed8; color:white; padding:10px 14px; border-radius:8px; font-weight:700; font-size:13px;">
+                KYC Verification
             </a>
         </div>
 
@@ -576,6 +587,6 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
 </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="scroll_top.js"></script>
 </body>
 </html>
-
