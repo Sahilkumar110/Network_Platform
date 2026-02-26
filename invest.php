@@ -23,11 +23,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $message = "<p style='color:red;'>Invalid session token. Please refresh and try again.</p>";
     } else {
     $amount = (float)($_POST['amount'] ?? 0);
-    $network = strtoupper(trim($_POST['network'] ?? ''));
+    $network = normalizeNetwork($_POST['network'] ?? '');
     $tx_hash = trim($_POST['tx_hash'] ?? '');
 
-    if ($amount >= 100 && isset($addresses[$network]) && $tx_hash !== '') {
+    if ($amount >= 100 && isset($addresses[$network]) && $tx_hash !== '' && isSupportedNetwork($network)) {
         try {
+            assertValidTxHashFormat($network, $tx_hash);
+            if (investmentTxHashExists($pdo, $network, $tx_hash)) {
+                throw new Exception("Duplicate transaction hash. This TX hash has already been submitted.");
+            }
+
             $verified_address = getVerifiedUserCryptoAddress($pdo, $user_id, $network);
             if (empty($verified_address)) {
                 throw new Exception("Your {$network} address is not verified. Add/verify it in Crypto Address Profile first.");
@@ -53,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $message = "<p style='color:red;'>Error: " . $e->getMessage() . "</p>";
         }
     } else {
-        $message = "<p style='color:red;'>Amount must be at least $100, network must be valid, and TX hash is required.</p>";
+        $message = "<p style='color:red;'>Amount must be at least $100, network must be valid, and TX hash is required in correct format.</p>";
     }
     }
 }

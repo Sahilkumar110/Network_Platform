@@ -278,7 +278,8 @@ function ensureInvestmentRequestsTable($pdo) {
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             processed_at TIMESTAMP NULL DEFAULT NULL,
             INDEX idx_user_status (user_id, status),
-            INDEX idx_created_at (created_at)
+            INDEX idx_created_at (created_at),
+            INDEX idx_network_hash (network, tx_hash)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
 }
@@ -377,6 +378,104 @@ function isSupportedNetwork($network) {
     return in_array($network, ['TRC20', 'BEP20', 'SOLANA'], true);
 }
 
+function validateCryptoAddressFormat($network, $address) {
+    $network = normalizeNetwork($network);
+    $address = trim((string)$address);
+    if ($address === '') {
+        return false;
+    }
+
+    if ($network === 'TRC20') {
+        return (bool)preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address);
+    }
+    if ($network === 'BEP20') {
+        return (bool)preg_match('/^0x[a-fA-F0-9]{40}$/', $address);
+    }
+    if ($network === 'SOLANA') {
+        return (bool)preg_match('/^[1-9A-HJ-NP-Za-km-z]{32,44}$/', $address);
+    }
+    return false;
+}
+
+function assertValidCryptoAddressFormat($network, $address) {
+    if (!validateCryptoAddressFormat($network, $address)) {
+        throw new Exception("Invalid {$network} wallet address format.");
+    }
+}
+
+function validateTxHashFormat($network, $tx_hash) {
+    $network = normalizeNetwork($network);
+    $tx_hash = trim((string)$tx_hash);
+    if ($tx_hash === '') {
+        return false;
+    }
+
+    if ($network === 'TRC20') {
+        return (bool)preg_match('/^[a-fA-F0-9]{64}$/', $tx_hash);
+    }
+    if ($network === 'BEP20') {
+        return (bool)preg_match('/^0x[a-fA-F0-9]{64}$/', $tx_hash);
+    }
+    if ($network === 'SOLANA') {
+        return (bool)preg_match('/^[1-9A-HJ-NP-Za-km-z]{43,88}$/', $tx_hash);
+    }
+    return false;
+}
+
+function assertValidTxHashFormat($network, $tx_hash) {
+    if (!validateTxHashFormat($network, $tx_hash)) {
+        throw new Exception("Invalid {$network} transaction hash format.");
+    }
+}
+
+function investmentTxHashExists($pdo, $network, $tx_hash, $exclude_request_id = null) {
+    $network = normalizeNetwork($network);
+    $tx_hash = trim((string)$tx_hash);
+    $exclude_request_id = (int)$exclude_request_id;
+
+    $sql = "SELECT id FROM investment_requests WHERE network = ? AND LOWER(tx_hash) = LOWER(?)";
+    $params = [$network, $tx_hash];
+    if ($exclude_request_id > 0) {
+        $sql .= " AND id <> ?";
+        $params[] = $exclude_request_id;
+    }
+    $sql .= " LIMIT 1";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return (bool)$stmt->fetchColumn();
+}
+
+function getWithdrawalEligibility($wallet_balance, $amount, $last_withdrawal_date, $min_balance_required = 200, $cooldown_days = 7) {
+    $wallet_balance = (float)$wallet_balance;
+    $amount = (float)$amount;
+    $min_balance_required = (float)$min_balance_required;
+    $cooldown_days = max(1, (int)$cooldown_days);
+
+    if ($amount <= 0) {
+        return ['eligible' => false, 'reason' => 'amount_invalid'];
+    }
+    if ($wallet_balance < $min_balance_required) {
+        return ['eligible' => false, 'reason' => 'below_minimum_balance'];
+    }
+    if ($amount > $wallet_balance) {
+        return ['eligible' => false, 'reason' => 'insufficient_balance'];
+    }
+
+    if (!empty($last_withdrawal_date)) {
+        $last_ts = strtotime((string)$last_withdrawal_date);
+        if ($last_ts !== false) {
+            $next_allowed = strtotime("+{$cooldown_days} days", $last_ts);
+            if ($next_allowed !== false && time() < $next_allowed) {
+                $days_left = (int)ceil(($next_allowed - time()) / 86400);
+                return ['eligible' => false, 'reason' => 'cooldown', 'days_left' => max(1, $days_left)];
+            }
+        }
+    }
+
+    return ['eligible' => true, 'reason' => 'ok'];
+}
+
 function getUserCryptoAddress($pdo, $user_id, $network) {
     $network = normalizeNetwork($network);
     $stmt = $pdo->prepare(
@@ -404,6 +503,7 @@ function saveUserCryptoAddress($pdo, $user_id, $network, $address) {
     if ($address === '') {
         throw new Exception("Address is required.");
     }
+    assertValidCryptoAddressFormat($network, $address);
 
     $existing = getUserCryptoAddress($pdo, (int)$user_id, $network);
     if ($existing) {

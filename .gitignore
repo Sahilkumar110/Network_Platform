@@ -1,0 +1,4 @@
+.env
+storage/logs/*.log
+storage/backups/*.sql
+storage/backups/*.gz

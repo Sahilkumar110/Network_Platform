@@ -25,29 +25,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $amount = (float)$_POST['amount'];
     $network = normalizeNetwork($_POST['network'] ?? '');
     $min_balance_required = 200;
-    
-    // Check Weekly Constraint (7 days)
-    $can_withdraw_date = true;
-    if ($user['last_withdrawal_date']) {
-        $last_date = strtotime($user['last_withdrawal_date']);
-        $next_allowed_date = strtotime('+7 days', $last_date);
-        if (time() < $next_allowed_date) {
-            $can_withdraw_date = false;
-            $days_left = ceil(($next_allowed_date - time()) / 86400);
-        }
-    }
+    $eligibility = getWithdrawalEligibility(
+        (float)$user['wallet_balance'],
+        (float)$amount,
+        $user['last_withdrawal_date'],
+        $min_balance_required,
+        7
+    );
 
     if (!isSupportedNetwork($network)) {
         $message = ["type" => "error", "text" => "Please select a valid network."];
     } elseif (empty(getVerifiedUserCryptoAddress($pdo, $user_id, $network))) {
         $message = ["type" => "error", "text" => "Your {$network} address is not verified. Please verify it first in Crypto Address Profile."];
-    } elseif ($amount <= 0) {
+    } elseif (!$eligibility['eligible'] && $eligibility['reason'] === 'amount_invalid') {
         $message = ["type" => "error", "text" => "Withdrawal amount must be greater than $0."];
-    } elseif ($user['wallet_balance'] < $min_balance_required) {
+    } elseif (!$eligibility['eligible'] && $eligibility['reason'] === 'below_minimum_balance') {
         $message = ["type" => "error", "text" => "You need at least $$min_balance_required in wallet to request withdrawal."];
-    } elseif ($amount > $user['wallet_balance']) {
+    } elseif (!$eligibility['eligible'] && $eligibility['reason'] === 'insufficient_balance') {
         $message = ["type" => "error", "text" => "Insufficient balance in your wallet!"];
-    } elseif (!$can_withdraw_date) {
+    } elseif (!$eligibility['eligible'] && $eligibility['reason'] === 'cooldown') {
+        $days_left = (int)($eligibility['days_left'] ?? 1);
         $message = ["type" => "error", "text" => "Weekly limit reached. Please wait $days_left more day(s)."];
     } else {
         try {

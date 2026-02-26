@@ -42,6 +42,9 @@ try {
     }
 
     if ($decision === 'approve') {
+        if (investmentTxHashExists($pdo, (string)$req['network'], (string)$req['tx_hash'], (int)$req['id'])) {
+            throw new Exception("Duplicate TX hash detected. This investment request cannot be approved.");
+        }
         processInvestment($pdo, (int)$req['user_id'], (float)$req['amount'], 'Crypto Deposit Approved');
         $upd = $pdo->prepare("UPDATE investment_requests SET status = 'approved', processed_at = NOW() WHERE id = ?");
         $upd->execute([$request_id]);

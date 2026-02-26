@@ -824,14 +824,27 @@ $logs = $stmt_logs->fetchAll();
 
 ensureInvestmentRequestsTable($pdo);
 ensureUserCryptoAddressesTable($pdo);
-// Fetch pending investment requests
-$stmt_investments = $pdo->query("
-    SELECT ir.id, ir.user_id, ir.amount, ir.network, ir.tx_hash, ir.status, ir.created_at, u.username, u.email
+$investment_search = trim((string)($_GET['investment_search'] ?? ''));
+// Fetch pending investment requests (searchable queue)
+$invest_sql = "
+    SELECT ir.id, ir.user_id, ir.amount, ir.network, ir.tx_hash, ir.status, ir.created_at, u.username, u.email, u.user_code
     FROM investment_requests ir
     JOIN users u ON ir.user_id = u.id
     WHERE ir.status = 'pending'
-    ORDER BY ir.created_at DESC
-");
+";
+$invest_params = [];
+if ($investment_search !== '') {
+    $invest_sql .= " AND (u.username LIKE ? OR u.email LIKE ? OR u.user_code LIKE ? OR ir.network LIKE ? OR ir.tx_hash LIKE ? OR ir.user_id = ?) ";
+    $invest_params[] = "%{$investment_search}%";
+    $invest_params[] = "%{$investment_search}%";
+    $invest_params[] = "%{$investment_search}%";
+    $invest_params[] = "%{$investment_search}%";
+    $invest_params[] = "%{$investment_search}%";
+    $invest_params[] = ctype_digit($investment_search) ? (int)$investment_search : -1;
+}
+$invest_sql .= " ORDER BY ir.created_at DESC ";
+$stmt_investments = $pdo->prepare($invest_sql);
+$stmt_investments->execute($invest_params);
 $pending_investments = $stmt_investments->fetchAll();
 
 // Fetch pending crypto address verification requests
@@ -918,6 +931,14 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     <?php echo renderAdminPager('crypto_page', $crypto_page, $pending_crypto_pages); ?>
 
     <div class="section-head"><h3>Pending Investment Requests</h3></div>
+    <form action="admin_dashboard.php" method="GET" class="search-form" style="margin-bottom:10px;">
+        <input type="text" name="investment_search" value="<?php echo htmlspecialchars($investment_search); ?>" placeholder="Search user, email, user code, tx hash, network, or user ID">
+        <input type="hidden" name="investments_page" value="1">
+        <?php if (!empty($search)): ?>
+            <input type="hidden" name="search" value="<?php echo htmlspecialchars($search); ?>">
+        <?php endif; ?>
+        <button type="submit">Search Queue</button>
+    </form>
     <table class="log-table">
         <thead>
             <tr>
@@ -936,7 +957,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                 <?php foreach ($pending_investments_display as $ir): ?>
                     <tr>
                         <td><?php echo date('M d, Y H:i', strtotime($ir['created_at'])); ?></td>
-                        <td><?php echo htmlspecialchars($ir['username']) . " (" . htmlspecialchars($ir['email']) . ")"; ?></td>
+                        <td><?php echo htmlspecialchars($ir['username']) . " (" . htmlspecialchars($ir['user_code']) . ")<br><small>" . htmlspecialchars($ir['email']) . "</small>"; ?></td>
                         <td>$<?php echo number_format((float)$ir['amount'], 2); ?></td>
                         <td><?php echo htmlspecialchars($ir['network']); ?></td>
                         <td><?php echo htmlspecialchars($ir['tx_hash']); ?></td>

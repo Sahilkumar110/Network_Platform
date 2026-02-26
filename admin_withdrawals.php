@@ -12,41 +12,88 @@ $status = $_GET['status'] ?? 'all';
 $search = trim($_GET['search'] ?? '');
 $date_from = $_GET['date_from'] ?? '';
 $date_to = $_GET['date_to'] ?? '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$export = strtolower(trim((string)($_GET['export'] ?? '')));
 
 $allowed_statuses = ['all', 'pending', 'approved', 'rejected'];
 if (!in_array($status, $allowed_statuses, true)) {
     $status = 'all';
 }
 
-$sql = "
-    SELECT w.id, w.user_id, w.amount, w.method, w.details, w.status, w.created_at, u.username, u.email
-    FROM withdrawals w
-    JOIN users u ON w.user_id = u.id
-    WHERE 1=1
-";
+$where_sql = " WHERE 1=1 ";
 $params = [];
 
 if ($status !== 'all') {
-    $sql .= " AND w.status = ? ";
+    $where_sql .= " AND w.status = ? ";
     $params[] = $status;
 }
 if ($search !== '') {
-    $sql .= " AND (u.username LIKE ? OR u.email LIKE ? OR w.user_id = ?) ";
+    $where_sql .= " AND (u.username LIKE ? OR u.email LIKE ? OR u.user_code LIKE ? OR w.user_id = ?) ";
+    $params[] = "%{$search}%";
     $params[] = "%{$search}%";
     $params[] = "%{$search}%";
     $params[] = ctype_digit($search) ? (int)$search : -1;
 }
 if ($date_from !== '') {
-    $sql .= " AND DATE(w.created_at) >= ? ";
+    $where_sql .= " AND DATE(w.created_at) >= ? ";
     $params[] = $date_from;
 }
 if ($date_to !== '') {
-    $sql .= " AND DATE(w.created_at) <= ? ";
+    $where_sql .= " AND DATE(w.created_at) <= ? ";
     $params[] = $date_to;
 }
 
-$sql .= " ORDER BY w.created_at DESC ";
+$count_sql = "
+    SELECT COUNT(*)
+    FROM withdrawals w
+    JOIN users u ON w.user_id = u.id
+    {$where_sql}
+";
+$count_stmt = $pdo->prepare($count_sql);
+$count_stmt->execute($params);
+$total_rows = (int)$count_stmt->fetchColumn();
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+$page = min($page, $total_pages);
+$offset = ($page - 1) * $per_page;
 
+$sql = "
+    SELECT w.id, w.user_id, w.amount, w.method, w.details, w.status, w.created_at, u.username, u.email, u.user_code
+    FROM withdrawals w
+    JOIN users u ON w.user_id = u.id
+    {$where_sql}
+    ORDER BY w.created_at DESC
+";
+
+if ($export === 'csv') {
+    $export_stmt = $pdo->prepare($sql);
+    $export_stmt->execute($params);
+    $export_rows = $export_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $filename = "withdrawals_" . date('Ymd_His') . ".csv";
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=' . $filename);
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['ID', 'Date', 'User ID', 'User Code', 'Username', 'Email', 'Amount', 'Method', 'Details', 'Status']);
+    foreach ($export_rows as $r) {
+        fputcsv($out, [
+            $r['id'],
+            $r['created_at'],
+            $r['user_id'],
+            $r['user_code'],
+            $r['username'],
+            $r['email'],
+            $r['amount'],
+            $r['method'],
+            $r['details'],
+            $r['status']
+        ]);
+    }
+    fclose($out);
+    exit();
+}
+
+$sql .= " LIMIT {$per_page} OFFSET {$offset}";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -71,9 +118,10 @@ backfillMissingUserCodes($pdo);
         .btn-danger { background: var(--danger); }
         .container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
         .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-        .filters { display: grid; grid-template-columns: 150px 1fr 170px 170px 120px; gap: 10px; }
+        .filters { display: grid; grid-template-columns: 150px 1fr 170px 170px 120px 140px; gap: 10px; }
         input, select, button { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
         button { cursor: pointer; font-weight: 700; background: var(--primary); color: #fff; border: none; }
+        .btn-export { text-decoration: none; display: inline-block; text-align: center; background: #0f766e; color: #fff; border-radius: 8px; padding: 10px; font-weight: 700; }
         table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
         th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 13px; }
         th { background: #f8fafc; color: #475569; }
@@ -87,6 +135,9 @@ backfillMissingUserCodes($pdo);
         .alert { padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
         .alert-ok { background: #dcfce7; color: #166534; }
         .alert-err { background: #fee2e2; color: #991b1b; }
+        .pager { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+        .pager a { text-decoration: none; border-radius: 6px; padding: 7px 11px; border: 1px solid #cbd5e1; color: #1e3a8a; font-weight: 700; background: #fff; }
+        .pager .active { background: #1e3a8a; color: #fff; border-color: #1e3a8a; }
         @media (max-width: 980px) { .filters { grid-template-columns: 1fr; } }
     </style>
     <link rel="stylesheet" href="responsive.css">
@@ -120,10 +171,11 @@ backfillMissingUserCodes($pdo);
                     <option value="approved" <?php echo $status === 'approved' ? 'selected' : ''; ?>>Approved</option>
                     <option value="rejected" <?php echo $status === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
                 </select>
-                <input type="text" name="search" placeholder="Search username, email, or user ID" value="<?php echo htmlspecialchars($search); ?>">
+                <input type="text" name="search" placeholder="Search username, email, user ID or code" value="<?php echo htmlspecialchars($search); ?>">
                 <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
                 <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
                 <button type="submit">Apply</button>
+                <a class="btn-export" href="admin_withdrawals.php?<?php echo htmlspecialchars(http_build_query(['status' => $status, 'search' => $search, 'date_from' => $date_from, 'date_to' => $date_to, 'export' => 'csv'])); ?>">Export CSV</a>
             </form>
         </div>
 
@@ -146,7 +198,7 @@ backfillMissingUserCodes($pdo);
                     <?php foreach ($rows as $r): ?>
                         <tr>
                             <td><?php echo date('M d, Y H:i', strtotime($r['created_at'])); ?></td>
-                            <td><?php echo htmlspecialchars($r['username']) . " (" . htmlspecialchars(getUserCodeById($pdo, (int)$r['user_id'])) . ")<br><small>" . htmlspecialchars($r['email']) . "</small>"; ?></td>
+                            <td><?php echo htmlspecialchars($r['username']) . " (" . htmlspecialchars((string)$r['user_code']) . ")<br><small>" . htmlspecialchars($r['email']) . "</small>"; ?></td>
                             <td>$<?php echo number_format((float)$r['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($r['method']); ?></td>
                             <td><?php echo htmlspecialchars($r['details']); ?></td>
@@ -169,6 +221,30 @@ backfillMissingUserCodes($pdo);
                 <?php endif; ?>
             </tbody>
         </table>
+        <?php if ($total_pages > 1): ?>
+            <div class="pager">
+                <?php
+                $base = ['status' => $status, 'search' => $search, 'date_from' => $date_from, 'date_to' => $date_to];
+                if ($page > 1):
+                    $prev = http_build_query(array_merge($base, ['page' => $page - 1]));
+                ?>
+                    <a href="admin_withdrawals.php?<?php echo htmlspecialchars($prev); ?>">Prev</a>
+                <?php endif; ?>
+                <?php
+                $start = max(1, $page - 2);
+                $end = min($total_pages, $page + 2);
+                for ($p = $start; $p <= $end; $p++):
+                    $link = http_build_query(array_merge($base, ['page' => $p]));
+                ?>
+                    <a class="<?php echo $p === $page ? 'active' : ''; ?>" href="admin_withdrawals.php?<?php echo htmlspecialchars($link); ?>"><?php echo $p; ?></a>
+                <?php endfor; ?>
+                <?php if ($page < $total_pages):
+                    $next = http_build_query(array_merge($base, ['page' => $page + 1]));
+                ?>
+                    <a href="admin_withdrawals.php?<?php echo htmlspecialchars($next); ?>">Next</a>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
     <script>
         (function () {
