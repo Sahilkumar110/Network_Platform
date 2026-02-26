@@ -21,13 +21,17 @@ $rate_decimal = 0.01;
 try {
     $pdo->beginTransaction();
 
-    $users_stmt = $pdo->query("SELECT id, investment_amount FROM users WHERE investment_amount > 0");
+    $users_stmt = $pdo->query(
+        "SELECT id, investment_amount, wallet_balance
+         FROM users
+         WHERE investment_amount > 0 OR wallet_balance > 0"
+    );
     $users = $users_stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $processed = 0;
     $skipped = 0;
     $total_profit = 0.00;
-    $daily_description = "Daily 1% fixed on investment amount [{$today}]";
+    $daily_description = "Daily 1% fixed on wallet + investment amount [{$today}]";
 
     $profit_log = $pdo->prepare(
         "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
@@ -43,7 +47,8 @@ try {
     );
 
     foreach ($users as $user) {
-        $profit = round(((float)$user['investment_amount']) * $rate_decimal, 2);
+        $base_amount = (float)$user['investment_amount'] + (float)$user['wallet_balance'];
+        $profit = round($base_amount * $rate_decimal, 2);
         if ($profit <= 0) {
             continue;
         }

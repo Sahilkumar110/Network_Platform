@@ -21,13 +21,18 @@ $today = date('Y-m-d');
 try {
     $pdo->beginTransaction();
 
-    // 1. Get all users with an active investment
-    $stmt = $pdo->query("SELECT id, investment_amount FROM users WHERE investment_amount > 0");
+    // 1. Get all users with wallet/investment value
+    $stmt = $pdo->query(
+        "SELECT id, investment_amount, wallet_balance
+         FROM users
+         WHERE investment_amount > 0 OR wallet_balance > 0"
+    );
     $users = $stmt->fetchAll();
 
     $count = 0;
     foreach ($users as $user) {
-        $profit = $user['investment_amount'] * $daily_rate;
+        $base_amount = (float)$user['investment_amount'] + (float)$user['wallet_balance'];
+        $profit = $base_amount * $daily_rate;
 
         if ($profit > 0) {
             // 2. Add profit to wallet with auditable ledger entry
@@ -36,7 +41,7 @@ try {
                 (int)$user['id'],
                 (float)$profit,
                 'daily_profit',
-                'Daily 1% fixed on investment amount',
+                'Daily 1% fixed on wallet + investment amount',
                 'auto_profit',
                 null
             );
