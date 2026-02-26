@@ -399,6 +399,36 @@ function ensureCronRunsTable($pdo) {
     );
 }
 
+function ensureGoogleAuthColumns($pdo) {
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'google_sub'");
+        $exists = $stmt && $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$exists) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN google_sub VARCHAR(64) DEFAULT NULL AFTER email");
+            $pdo->exec("CREATE INDEX idx_users_google_sub ON users (google_sub)");
+        }
+    } catch (Exception $e) {
+        // Non-fatal: login can still work with email-only matching.
+    }
+}
+
+function ensurePasswordResetTokensTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash CHAR(64) NOT NULL,
+            requested_ip VARCHAR(64) DEFAULT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_token_hash (token_hash),
+            INDEX idx_user_created (user_id, created_at),
+            INDEX idx_expires_used (expires_at, used_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
 function ensureLedgerReconciliationTable($pdo) {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS ledger_reconciliation_reports (
@@ -439,6 +469,196 @@ function queueNotification($pdo, $channel, $event_type, $subject, $message, $use
         $message,
         $payload ? json_encode($payload) : null
     ]);
+}
+
+function smtpReadResponse($socket) {
+    $response = '';
+    while (($line = fgets($socket, 515)) !== false) {
+        $response .= $line;
+        if (strlen($line) >= 4 && $line[3] === ' ') {
+            break;
+        }
+    }
+    if ($response === '') {
+        throw new Exception('SMTP server closed connection unexpectedly');
+    }
+    return $response;
+}
+
+function smtpExpectCode($socket, array $expectedCodes) {
+    $response = smtpReadResponse($socket);
+    $code = (int)substr($response, 0, 3);
+    if (!in_array($code, $expectedCodes, true)) {
+        throw new Exception('SMTP error: ' . trim($response));
+    }
+    return $response;
+}
+
+function smtpCommand($socket, $command, array $expectedCodes) {
+    fwrite($socket, $command . "\r\n");
+    return smtpExpectCode($socket, $expectedCodes);
+}
+
+function smtpSendEmail($to, $subject, $message) {
+    $host = trim((string)envValue('SMTP_HOST', ''));
+    $port = (int)envValue('SMTP_PORT', 587);
+    $user = trim((string)envValue('SMTP_USER', ''));
+    $pass = (string)envValue('SMTP_PASS', '');
+    $enc = strtolower(trim((string)envValue('SMTP_ENCRYPTION', 'tls'))); // tls|ssl|none
+    $fromEmail = trim((string)envValue('MAIL_FROM', 'no-reply@example.com'));
+    $fromName = trim((string)envValue('MAIL_FROM_NAME', 'Network Platform'));
+    $timeout = (int)envValue('SMTP_TIMEOUT', 15);
+
+    if ($host === '') {
+        throw new Exception('SMTP_HOST not configured');
+    }
+
+    $remote = ($enc === 'ssl' ? 'ssl://' : '') . $host;
+    $socket = @stream_socket_client($remote . ':' . $port, $errno, $errstr, $timeout);
+    if (!$socket) {
+        throw new Exception('SMTP connect failed: ' . $errstr . ' (' . $errno . ')');
+    }
+
+    stream_set_timeout($socket, $timeout);
+
+    try {
+        smtpExpectCode($socket, [220]);
+        $clientHost = (string)envValue('SMTP_CLIENT_HOST', 'localhost');
+        smtpCommand($socket, 'EHLO ' . $clientHost, [250]);
+
+        if ($enc === 'tls') {
+            smtpCommand($socket, 'STARTTLS', [220]);
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                throw new Exception('Failed to enable TLS crypto');
+            }
+            smtpCommand($socket, 'EHLO ' . $clientHost, [250]);
+        }
+
+        if ($user !== '') {
+            smtpCommand($socket, 'AUTH LOGIN', [334]);
+            smtpCommand($socket, base64_encode($user), [334]);
+            smtpCommand($socket, base64_encode($pass), [235]);
+        }
+
+        smtpCommand($socket, 'MAIL FROM:<' . $fromEmail . '>', [250]);
+        smtpCommand($socket, 'RCPT TO:<' . trim((string)$to) . '>', [250, 251]);
+        smtpCommand($socket, 'DATA', [354]);
+
+        $encodedSubject = function_exists('mb_encode_mimeheader')
+            ? mb_encode_mimeheader((string)$subject, 'UTF-8', 'B', "\r\n")
+            : (string)$subject;
+
+        $safeBody = preg_replace("/\r\n|\r|\n/", "\r\n", (string)$message);
+        $safeBody = preg_replace('/^\./m', '..', $safeBody);
+
+        $headers = [];
+        $headers[] = 'Date: ' . date(DATE_RFC2822);
+        $headers[] = 'From: ' . $fromName . ' <' . $fromEmail . '>';
+        $headers[] = 'To: <' . trim((string)$to) . '>';
+        $headers[] = 'Subject: ' . $encodedSubject;
+        $headers[] = 'MIME-Version: 1.0';
+        $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+        $headers[] = 'Content-Transfer-Encoding: 8bit';
+
+        $data = implode("\r\n", $headers) . "\r\n\r\n" . $safeBody . "\r\n.";
+        fwrite($socket, $data . "\r\n");
+        smtpExpectCode($socket, [250]);
+        smtpCommand($socket, 'QUIT', [221]);
+    } finally {
+        fclose($socket);
+    }
+
+    return true;
+}
+
+function deliverNotificationQueueItem($row) {
+    if (!is_array($row)) {
+        throw new Exception('Invalid queue row');
+    }
+
+    if ($row['channel'] === 'email') {
+        $to = trim((string)$row['email_to']);
+        if ($to === '') {
+            throw new Exception('Missing email_to');
+        }
+        $subject = (string)($row['subject'] ?: 'Network Platform Notification');
+        if (envBool('SMTP_ENABLED', false)) {
+            return smtpSendEmail($to, $subject, (string)$row['message']);
+        }
+
+        $headers = "From: " . (string)(getenv('MAIL_FROM') ?: 'no-reply@network.local');
+        $ok = @mail($to, $subject, (string)$row['message'], $headers);
+        if (!$ok) {
+            throw new Exception('mail() failed');
+        }
+        return true;
+    }
+
+    if ($row['channel'] === 'telegram') {
+        $bot = trim((string)(getenv('TELEGRAM_BOT_TOKEN') ?: ''));
+        $chat = trim((string)(getenv('TELEGRAM_CHAT_ID') ?: ''));
+        if ($bot === '' || $chat === '') {
+            throw new Exception('Telegram token/chat not configured');
+        }
+        $url = "https://api.telegram.org/bot{$bot}/sendMessage";
+        [$status, $res] = httpJsonRequest('POST', $url, [
+            'chat_id' => $chat,
+            'text' => (string)$row['message']
+        ]);
+        if ($status !== 200 || empty($res['ok'])) {
+            throw new Exception('Telegram API send failed');
+        }
+        return true;
+    }
+
+    throw new Exception('Unsupported channel');
+}
+
+function processNotificationQueue($pdo, $limit = 50, $whereSql = '', $params = []) {
+    ensureNotificationQueueTable($pdo);
+
+    $limit = max(1, (int)$limit);
+    $where = "status = 'pending'";
+    if (trim((string)$whereSql) !== '') {
+        $where .= " AND (" . $whereSql . ")";
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT * FROM notification_queue
+         WHERE {$where}
+         ORDER BY created_at ASC
+         LIMIT {$limit}"
+    );
+    $stmt->execute(is_array($params) ? $params : []);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $sent = 0;
+    $failed = 0;
+
+    foreach ($rows as $row) {
+        $id = (int)$row['id'];
+        $ok = false;
+        $error = '';
+
+        try {
+            $ok = deliverNotificationQueueItem($row);
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+            $ok = false;
+        }
+
+        if ($ok) {
+            $up = $pdo->prepare("UPDATE notification_queue SET status='sent', attempts=attempts+1, sent_at=NOW(), last_error=NULL WHERE id = ?");
+            $up->execute([$id]);
+            $sent++;
+        } else {
+            $up = $pdo->prepare("UPDATE notification_queue SET status='failed', attempts=attempts+1, last_error=? WHERE id = ?");
+            $up->execute([$error, $id]);
+            $failed++;
+        }
+    }
+
+    return ['sent' => $sent, 'failed' => $failed, 'processed' => count($rows)];
 }
 
 function queueUserNotification($pdo, $user_id, $event_type, $subject, $message, $payload = null) {
@@ -609,6 +829,53 @@ function httpJsonRequest($method, $url, $payload = null, $headers = []) {
         $status = (int)$m[1];
     }
     return [$status, $decoded];
+}
+
+function verifyGoogleIdToken($idToken, $expectedClientId) {
+    $idToken = trim((string)$idToken);
+    $expectedClientId = trim((string)$expectedClientId);
+    if ($idToken === '' || $expectedClientId === '') {
+        return ['ok' => false, 'reason' => 'missing_token_or_client_id'];
+    }
+
+    $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
+    [$status, $data] = httpJsonRequest('GET', $url);
+    if ((int)$status !== 200 || !is_array($data)) {
+        return ['ok' => false, 'reason' => 'google_verification_failed'];
+    }
+
+    $aud = (string)($data['aud'] ?? '');
+    if ($aud !== $expectedClientId) {
+        return ['ok' => false, 'reason' => 'client_id_mismatch'];
+    }
+
+    $issuer = (string)($data['iss'] ?? '');
+    if (!in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true)) {
+        return ['ok' => false, 'reason' => 'invalid_issuer'];
+    }
+
+    $exp = (int)($data['exp'] ?? 0);
+    if ($exp <= time()) {
+        return ['ok' => false, 'reason' => 'token_expired'];
+    }
+
+    $emailVerified = strtolower((string)($data['email_verified'] ?? 'false'));
+    if (!in_array($emailVerified, ['true', '1'], true)) {
+        return ['ok' => false, 'reason' => 'email_not_verified'];
+    }
+
+    $sub = trim((string)($data['sub'] ?? ''));
+    $email = strtolower(trim((string)($data['email'] ?? '')));
+    if ($sub === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return ['ok' => false, 'reason' => 'missing_identity'];
+    }
+
+    return [
+        'ok' => true,
+        'sub' => $sub,
+        'email' => $email,
+        'name' => trim((string)($data['name'] ?? '')),
+    ];
 }
 
 function verifyOnChainTransaction($network, $tx_hash, $expected_to_address = null) {

@@ -4,15 +4,77 @@ include 'db.php';
 include 'functions.php';
 ensureLoginAttemptsTable($pdo);
 ensureNotificationQueueTable($pdo);
+ensureGoogleAuthColumns($pdo);
 
 $error_message = "";
 $lockout_max_attempts = 5;
 $lockout_window_minutes = 15;
 $lockout_minutes = 15;
+$google_client_id = trim((string)envValue('GOOGLE_CLIENT_ID', ''));
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error_message = "Invalid session token. Please refresh and try again.";
+    } else {
+    $action = trim((string)($_POST['action'] ?? 'password_login'));
+    if ($action === 'google_login') {
+    $mode = trim((string)($_POST['mode'] ?? 'user'));
+    if ($mode === 'admin') {
+        $error_message = "Google login is available for Member Login only.";
+    } elseif ($google_client_id === '') {
+        $error_message = "Google login is not configured. Please contact admin.";
+    } else {
+        $verify = verifyGoogleIdToken((string)($_POST['google_id_token'] ?? ''), $google_client_id);
+        if (empty($verify['ok'])) {
+            $error_message = "Google login failed. Please try again.";
+        } else {
+            $email = (string)$verify['email'];
+            $google_sub = (string)$verify['sub'];
+            $display_name = trim((string)$verify['name']);
+
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$user) {
+                $base_username = $display_name !== '' ? $display_name : strstr($email, '@', true);
+                $base_username = trim(preg_replace('/\s+/', ' ', (string)$base_username));
+                if ($base_username === '') {
+                    $base_username = 'GoogleUser';
+                }
+
+                $temp_password_hash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+                $user_code = generateUniqueUserCode($pdo);
+                $ins = $pdo->prepare(
+                    "INSERT INTO users (username, email, google_sub, password, referrer_id, user_code)
+                     VALUES (?, ?, ?, ?, NULL, ?)"
+                );
+                $ins->execute([$base_username, $email, $google_sub, $temp_password_hash, $user_code]);
+
+                $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
+                $stmt->execute([(int)$pdo->lastInsertId()]);
+                $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            } else {
+                if (isset($user['google_sub']) && ((string)$user['google_sub'] === '' || $user['google_sub'] === null)) {
+                    $up = $pdo->prepare("UPDATE users SET google_sub = ? WHERE id = ?");
+                    $up->execute([$google_sub, (int)$user['id']]);
+                    $user['google_sub'] = $google_sub;
+                }
+            }
+
+            if ($user && isset($user['status']) && $user['status'] === 'banned') {
+                $error_message = "Your account has been suspended. Please contact support.";
+            } elseif ($user) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['role'] = $user['role'];
+                session_regenerate_id(true);
+                header("Location: dashboard.php");
+                exit();
+            } else {
+                $error_message = "Google login failed. Please try again.";
+            }
+        }
+    }
     } else {
     $email = strtolower(trim($_POST['email']));
     $password = $_POST['password'];
@@ -75,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
         recordLoginAttempt($pdo, $email, $client_ip, false);
         $error_message = "Invalid email or password.";
+    }
     }
     }
     }
@@ -167,6 +230,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .footer-text { margin-top: 25px; font-size: 14px; color: #64748b; }
         .footer-text a { color: var(--secondary); text-decoration: none; font-weight: 600; }
+        .auth-divider {
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .auth-divider::before, .auth-divider::after {
+            content: "";
+            height: 1px;
+            background: #e2e8f0;
+            flex: 1;
+        }
+        .google-login-wrap {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .forgot-link {
+            display: block;
+            text-align: right;
+            margin-top: -6px;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+        .forgot-link a {
+            color: var(--secondary);
+            text-decoration: none;
+            font-weight: 600;
+        }
     </style>
     <link rel="stylesheet" href="responsive.css">
 </head>
@@ -180,15 +275,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="error-popup"><?php echo $error_message; ?></div>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" id="passwordLoginForm">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+        <input type="hidden" name="action" value="password_login">
         <div class="mode-selector">
             <label>
-                <input type="radio" name="mode" value="user" checked>
+                <input type="radio" name="mode" value="user" checked id="modeUser">
                 <span>Member Login</span>
             </label>
             <label>
-                <input type="radio" name="mode" value="admin">
+                <input type="radio" name="mode" value="admin" id="modeAdmin">
                 <span>Admin Panel</span>
             </label>
         </div>
@@ -207,15 +303,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </button>
             </div>
         </div>
+        <div class="forgot-link">
+            <a href="forgot_password.php">Forgot Password?</a>
+        </div>
         
         <button type="submit" class="submit-btn">Sign In to Dashboard</button>
     </form>
+    <?php if ($google_client_id !== ''): ?>
+    <div class="auth-divider">OR</div>
+    <form method="POST" id="googleLoginForm">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+        <input type="hidden" name="action" value="google_login">
+        <input type="hidden" name="mode" id="googleModeField" value="user">
+        <input type="hidden" name="google_id_token" id="googleIdTokenField" value="">
+        <div class="google-login-wrap" id="googleButton"></div>
+    </form>
+    <?php endif; ?>
 
     <div class="footer-text">
         Don't have an account? <a href="register.php">Create one</a>
     </div>
 </div>
 
+<?php if ($google_client_id !== ''): ?>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<?php endif; ?>
 <script>
     // Initialize Lucide Icons
     lucide.createIcons();
@@ -236,7 +348,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Refresh icons
         lucide.createIcons();
     }
+
+    (function () {
+        var modeUser = document.getElementById('modeUser');
+        var modeAdmin = document.getElementById('modeAdmin');
+        var googleModeField = document.getElementById('googleModeField');
+        var googleWrap = document.getElementById('googleButton');
+        if (!googleModeField || !modeUser || !modeAdmin || !googleWrap) return;
+
+        function syncMode() {
+            googleModeField.value = modeAdmin.checked ? 'admin' : 'user';
+            googleWrap.style.display = modeAdmin.checked ? 'none' : 'flex';
+        }
+
+        modeUser.addEventListener('change', syncMode);
+        modeAdmin.addEventListener('change', syncMode);
+        syncMode();
+    })();
 </script>
+<?php if ($google_client_id !== ''): ?>
+<script>
+    function handleGoogleCredentialResponse(response) {
+        if (!response || !response.credential) {
+            return;
+        }
+        var tokenField = document.getElementById('googleIdTokenField');
+        var form = document.getElementById('googleLoginForm');
+        if (!tokenField || !form) {
+            return;
+        }
+        tokenField.value = response.credential;
+        form.submit();
+    }
+
+    window.onload = function () {
+        if (!window.google || !google.accounts || !google.accounts.id) {
+            return;
+        }
+        google.accounts.id.initialize({
+            client_id: "<?php echo htmlspecialchars($google_client_id, ENT_QUOTES); ?>",
+            callback: handleGoogleCredentialResponse
+        });
+        google.accounts.id.renderButton(
+            document.getElementById("googleButton"),
+            { theme: "outline", size: "large", width: 320, text: "signin_with" }
+        );
+    };
+</script>
+<?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="scroll_top.js"></script>
