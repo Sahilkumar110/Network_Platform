@@ -2,6 +2,7 @@
 session_start();
 include 'db.php'; 
 include 'functions.php'; 
+ensureWalletLedgerTable($pdo);
 
 $ref_input = trim((string)($_GET['ref'] ?? ''));
 $ref_id = null;

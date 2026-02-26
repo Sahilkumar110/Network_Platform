@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -31,13 +32,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // This ensures referral commissions run on the invested amount.
             $stmt = $pdo->prepare(
                 "UPDATE users
-                 SET wallet_balance = wallet_balance + ?, investment_amount = investment_amount + ?
+                 SET investment_amount = investment_amount + ?
                  WHERE id = ?"
             );
-            $stmt->execute([$amount, $amount, $user_id]);
+            $stmt->execute([$amount, $user_id]);
             if ($stmt->rowCount() === 0) {
                 throw new Exception("User not found.");
             }
+
+            applyWalletDelta(
+                $pdo,
+                $user_id,
+                $amount,
+                'admin_credit',
+                'Admin balance/investment credit',
+                'admin_user',
+                $admin_id
+            );
 
             $tx_stmt = $pdo->prepare(
                 "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
@@ -48,15 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             distributeCommissions($pdo, $user_id, $amount);
             updateUserRank($pdo, $user_id);
         } else {
-            $stmt = $pdo->prepare(
-                "UPDATE users
-                 SET wallet_balance = wallet_balance - ?
-                 WHERE id = ? AND wallet_balance >= ?"
+            applyWalletDelta(
+                $pdo,
+                $user_id,
+                -$amount,
+                'admin_debit',
+                'Admin manual wallet deduction',
+                'admin_user',
+                $admin_id
             );
-            $stmt->execute([$amount, $user_id, $amount]);
-            if ($stmt->rowCount() === 0) {
-                throw new Exception("Insufficient wallet balance or user not found.");
-            }
         }
 
         $log_stmt = $pdo->prepare("INSERT INTO transaction_logs (admin_id, user_id, action_type, amount) VALUES (?, ?, ?, ?)");

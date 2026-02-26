@@ -375,6 +375,26 @@ ALTER TABLE `transactions`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`referrer_id`) REFERENCES `users` (`id`);
+
+--
+-- Table structure for table `wallet_ledger`
+--
+CREATE TABLE IF NOT EXISTS `wallet_ledger` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `delta_amount` decimal(15,2) NOT NULL,
+  `balance_before` decimal(15,2) NOT NULL,
+  `balance_after` decimal(15,2) NOT NULL,
+  `entry_type` varchar(50) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `reference_type` varchar(50) DEFAULT NULL,
+  `reference_id` bigint(20) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_user_created` (`user_id`,`created_at`),
+  KEY `idx_entry_type` (`entry_type`),
+  CONSTRAINT `wallet_ledger_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

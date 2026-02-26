@@ -1,6 +1,7 @@
 <?php
 include 'db.php';
 include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 $today = date('Y-m-d');
 
@@ -24,7 +25,6 @@ try {
     $processed = 0;
     $total_profit = 0.00;
 
-    $wallet_update = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
     $profit_log = $pdo->prepare(
         "INSERT INTO transactions (user_id, amount, type, level, description, created_at)
          VALUES (?, ?, 'daily_profit', NULL, 'Daily 1% fixed on investment amount', NOW())"
@@ -36,13 +36,23 @@ try {
             continue;
         }
 
-        $wallet_update->execute([$profit, $user['id']]);
+        applyWalletDelta(
+            $pdo,
+            (int)$user['id'],
+            $profit,
+            'daily_profit',
+            'Daily 1% fixed on investment amount',
+            'cron_profit',
+            null
+        );
         $profit_log->execute([$user['id'], $profit]);
-        updateUserRank($pdo, $user['id']);
 
         $processed++;
         $total_profit += $profit;
     }
+
+    // Keep all ranks consistent in one pass after profit distribution.
+    recalculateAllUserRanks($pdo);
 
     $mark_run = $pdo->prepare("UPDATE settings SET setting_value = ? WHERE setting_key = 'last_cron_run'");
     $mark_run->execute([$today]);

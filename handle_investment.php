@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -28,7 +29,8 @@ if ($request_id <= 0 || !in_array($decision, ['approve', 'reject'], true)) {
 }
 
 try {
-    $stmt = $pdo->prepare("SELECT * FROM investment_requests WHERE id = ?");
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("SELECT * FROM investment_requests WHERE id = ? FOR UPDATE");
     $stmt->execute([$request_id]);
     $req = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -47,9 +49,14 @@ try {
         $upd = $pdo->prepare("UPDATE investment_requests SET status = 'rejected', processed_at = NOW() WHERE id = ?");
         $upd->execute([$request_id]);
     }
+
+    $pdo->commit();
     header("Location: admin_dashboard.php?success=Investment request updated");
     exit();
 } catch (Exception $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     header("Location: admin_dashboard.php?error=" . urlencode($e->getMessage()));
     exit();
 }

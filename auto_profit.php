@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     die("Unauthorized");
@@ -22,9 +24,16 @@ try {
         $profit = $user['investment_amount'] * $daily_rate;
 
         if ($profit > 0) {
-            // 2. Add profit to wallet
-            $upd = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
-            $upd->execute([$profit, $user['id']]);
+            // 2. Add profit to wallet with auditable ledger entry
+            applyWalletDelta(
+                $pdo,
+                (int)$user['id'],
+                (float)$profit,
+                'daily_profit',
+                'Daily 1% fixed on investment amount',
+                'auto_profit',
+                null
+            );
 
             // 3. Log the transaction so user sees "Daily Profit" in their history
             $log = $pdo->prepare("INSERT INTO transaction_logs (user_id, action_type, amount, created_at) VALUES (?, 'add', ?, NOW())");
@@ -33,6 +42,8 @@ try {
             $count++;
         }
     }
+
+    recalculateAllUserRanks($pdo);
 
     $pdo->commit();
     header("Location: admin_dashboard.php?success=Distributed profit to $count users for $today");

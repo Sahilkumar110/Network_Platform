@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -52,21 +53,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         try {
             $pdo->beginTransaction();
 
-            // 1. Atomic deduction with balance check
-            $update = $pdo->prepare(
-                "UPDATE users
-                 SET wallet_balance = wallet_balance - ?, last_withdrawal_date = NOW()
-                 WHERE id = ? AND wallet_balance >= ?"
-            );
-            $update->execute([$amount, $user_id, $amount]);
-            if ($update->rowCount() === 0) {
-                throw new Exception("Unable to process request due to insufficient wallet balance.");
-            }
-
-            // 2. Save withdrawal request in dedicated withdrawals table
+            // 1. Save withdrawal request in dedicated withdrawals table
             $verified_address = getVerifiedUserCryptoAddress($pdo, $user_id, $network);
             $log = $pdo->prepare("INSERT INTO withdrawals (user_id, amount, method, details, status, created_at) VALUES (?, ?, ?, ?, 'pending', NOW())");
             $log->execute([$user_id, $amount, $network, $verified_address]);
+            $withdrawal_id = (int)$pdo->lastInsertId();
+
+            // 2. Atomic deduction + ledger row
+            applyWalletDelta(
+                $pdo,
+                $user_id,
+                -$amount,
+                'withdrawal_request',
+                "Withdrawal request submitted via {$network}",
+                'withdrawals',
+                $withdrawal_id
+            );
+
+            $set_date = $pdo->prepare("UPDATE users SET last_withdrawal_date = NOW() WHERE id = ?");
+            $set_date->execute([$user_id]);
 
             $pdo->commit();
             

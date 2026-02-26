@@ -80,23 +80,47 @@ function getReferralCountAtLevel($pdo, $root_user_id, $target_level) {
     return count($current_ids);
 }
 
-function updateUserRank($pdo, $user_id) {
-    $stmt = $pdo->prepare("SELECT investment_amount FROM users WHERE id = ?");
-    $stmt->execute([$user_id]);
-    $investment_amount = (float)$stmt->fetchColumn();
-
+function getRankFromInvestmentAmount($investment_amount) {
+    $investment_amount = (float)$investment_amount;
     if ($investment_amount >= 20000) {
-        $rank = 'Diamond';
-    } elseif ($investment_amount >= 15000) {
-        $rank = 'Gold';
-    } elseif ($investment_amount >= 10000) {
-        $rank = 'Silver';
-    } else {
-        $rank = 'Basic';
+        return 'Diamond';
+    }
+    if ($investment_amount >= 15000) {
+        return 'Gold';
+    }
+    if ($investment_amount >= 10000) {
+        return 'Silver';
+    }
+    return 'Basic';
+}
+
+function updateUserRank($pdo, $user_id) {
+    $stmt = $pdo->prepare("SELECT investment_amount, user_rank FROM users WHERE id = ?");
+    $stmt->execute([(int)$user_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        throw new Exception("User not found.");
     }
 
-    $update = $pdo->prepare("UPDATE users SET user_rank = ? WHERE id = ?");
-    $update->execute([$rank, $user_id]);
+    $calculated_rank = getRankFromInvestmentAmount((float)$row['investment_amount']);
+    if ((string)$row['user_rank'] !== $calculated_rank) {
+        $update = $pdo->prepare("UPDATE users SET user_rank = ? WHERE id = ?");
+        $update->execute([$calculated_rank, (int)$user_id]);
+    }
+    return $calculated_rank;
+}
+
+function recalculateAllUserRanks($pdo) {
+    $sql = "UPDATE users
+            SET user_rank = CASE
+                WHEN investment_amount >= 20000 THEN 'Diamond'
+                WHEN investment_amount >= 15000 THEN 'Gold'
+                WHEN investment_amount >= 10000 THEN 'Silver'
+                ELSE 'Basic'
+            END";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    return $stmt->rowCount();
 }
 
 function ensureMilestoneTable($pdo) {
@@ -145,6 +169,75 @@ function ensureUserCryptoAddressesTable($pdo) {
             INDEX idx_status_created (status, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
+}
+
+function ensureWalletLedgerTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS wallet_ledger (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            delta_amount DECIMAL(15,2) NOT NULL,
+            balance_before DECIMAL(15,2) NOT NULL,
+            balance_after DECIMAL(15,2) NOT NULL,
+            entry_type VARCHAR(50) NOT NULL,
+            description VARCHAR(255) DEFAULT NULL,
+            reference_type VARCHAR(50) DEFAULT NULL,
+            reference_id BIGINT DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_created (user_id, created_at),
+            INDEX idx_entry_type (entry_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function applyWalletDelta(
+    $pdo,
+    $user_id,
+    $delta_amount,
+    $entry_type,
+    $description = null,
+    $reference_type = null,
+    $reference_id = null
+) {
+    $delta_amount = round((float)$delta_amount, 2);
+    if ($delta_amount == 0.0) {
+        throw new Exception("Wallet delta cannot be zero.");
+    }
+
+    $stmt = $pdo->prepare("SELECT wallet_balance FROM users WHERE id = ? FOR UPDATE");
+    $stmt->execute([(int)$user_id]);
+    $current_balance = $stmt->fetchColumn();
+
+    if ($current_balance === false) {
+        throw new Exception("User not found.");
+    }
+
+    $before = round((float)$current_balance, 2);
+    $after = round($before + $delta_amount, 2);
+    if ($after < 0) {
+        throw new Exception("Insufficient wallet balance.");
+    }
+
+    $update = $pdo->prepare("UPDATE users SET wallet_balance = ? WHERE id = ?");
+    $update->execute([$after, (int)$user_id]);
+
+    $ledger = $pdo->prepare(
+        "INSERT INTO wallet_ledger
+        (user_id, delta_amount, balance_before, balance_after, entry_type, description, reference_type, reference_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+    );
+    $ledger->execute([
+        (int)$user_id,
+        $delta_amount,
+        $before,
+        $after,
+        (string)$entry_type,
+        $description,
+        $reference_type,
+        $reference_id
+    ]);
+
+    return $after;
 }
 
 function normalizeNetwork($network) {
@@ -212,23 +305,50 @@ function applyMilestoneBonus($pdo, $user_id) {
     }
 
     $code = 'DIRECT_10';
-    $check = $pdo->prepare("SELECT id FROM milestone_rewards WHERE user_id = ? AND milestone_code = ?");
-    $check->execute([$user_id, $code]);
-    if ($check->fetch()) {
-        return;
+    $bonus_amount = 100.00;
+    $owns_transaction = !$pdo->inTransaction();
+    if ($owns_transaction) {
+        $pdo->beginTransaction();
     }
 
-    $bonus_amount = 100.00;
-    $wallet = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
-    $wallet->execute([$bonus_amount, $user_id]);
+    try {
+        $save = $pdo->prepare("INSERT INTO milestone_rewards (user_id, milestone_code, amount) VALUES (?, ?, ?)");
+        $save->execute([(int)$user_id, $code, $bonus_amount]);
+        $milestone_id = (int)$pdo->lastInsertId();
 
-    $save = $pdo->prepare("INSERT INTO milestone_rewards (user_id, milestone_code, amount) VALUES (?, ?, ?)");
-    $save->execute([$user_id, $code, $bonus_amount]);
+        applyWalletDelta(
+            $pdo,
+            (int)$user_id,
+            $bonus_amount,
+            'milestone_bonus',
+            'Milestone bonus: 10 direct referrals',
+            'milestone_rewards',
+            $milestone_id
+        );
 
-    $log = $pdo->prepare(
-        "INSERT INTO transactions (user_id, amount, type, level, description, created_at) VALUES (?, ?, 'referral_bonus', NULL, ?, NOW())"
-    );
-    $log->execute([$user_id, $bonus_amount, 'Milestone bonus: 10 direct referrals']);
+        $log = $pdo->prepare(
+            "INSERT INTO transactions (user_id, amount, type, level, description, created_at) VALUES (?, ?, 'referral_bonus', NULL, ?, NOW())"
+        );
+        $log->execute([$user_id, $bonus_amount, 'Milestone bonus: 10 direct referrals']);
+
+        if ($owns_transaction) {
+            $pdo->commit();
+        }
+    } catch (PDOException $e) {
+        if ($owns_transaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        // Duplicate milestone insert means already rewarded; ignore safely.
+        if ($e->getCode() === '23000') {
+            return;
+        }
+        throw $e;
+    } catch (Exception $e) {
+        if ($owns_transaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function distributeCommissions($pdo, $investor_user_id, $investment_amount) {
@@ -247,8 +367,15 @@ function distributeCommissions($pdo, $investor_user_id, $investment_amount) {
         $upline_id = (int)$user['referrer_id'];
         $commission = (float)$investment_amount * $percentages[$level];
 
-        $update = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
-        $update->execute([$commission, $upline_id]);
+        applyWalletDelta(
+            $pdo,
+            $upline_id,
+            $commission,
+            'referral_bonus',
+            "Level $level bonus from User ID $investor_user_id",
+            'investment',
+            (int)$investor_user_id
+        );
 
         $log = $pdo->prepare(
             "INSERT INTO transactions (user_id, amount, type, level, description, created_at) VALUES (?, ?, 'referral_bonus', ?, ?, NOW())"
@@ -266,7 +393,10 @@ function processInvestment($pdo, $user_id, $amount, $source_label = 'Investment'
         throw new Exception("Amount must be greater than 0.");
     }
 
-    $pdo->beginTransaction();
+    $owns_transaction = !$pdo->inTransaction();
+    if ($owns_transaction) {
+        $pdo->beginTransaction();
+    }
     try {
         $stmt = $pdo->prepare("UPDATE users SET investment_amount = investment_amount + ? WHERE id = ?");
         $stmt->execute([$amount, $user_id]);
@@ -279,9 +409,13 @@ function processInvestment($pdo, $user_id, $amount, $source_label = 'Investment'
         distributeCommissions($pdo, $user_id, $amount);
         updateUserRank($pdo, $user_id);
 
-        $pdo->commit();
+        if ($owns_transaction) {
+            $pdo->commit();
+        }
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($owns_transaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 }

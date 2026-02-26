@@ -2,6 +2,7 @@
 session_start();
 include 'db.php';
 include 'functions.php';
+ensureWalletLedgerTable($pdo);
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     header("Location: login.php");
@@ -52,8 +53,15 @@ try {
         $update = $pdo->prepare("UPDATE withdrawals SET status = 'rejected' WHERE id = ?");
         $update->execute([$withdrawal_id]);
 
-        $refund = $pdo->prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?");
-        $refund->execute([(float)$withdrawal['amount'], (int)$withdrawal['user_id']]);
+        applyWalletDelta(
+            $pdo,
+            (int)$withdrawal['user_id'],
+            (float)$withdrawal['amount'],
+            'withdrawal_refund',
+            'Withdrawal rejected by admin and refunded',
+            'withdrawals',
+            (int)$withdrawal['id']
+        );
     }
 
     $pdo->commit();
