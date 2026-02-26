@@ -3,6 +3,8 @@ session_start();
 include 'db.php'; 
 include 'functions.php'; 
 ensureWalletLedgerTable($pdo);
+ensureNotificationQueueTable($pdo);
+ensureRegistrationOtpsTable($pdo);
 
 $ref_input = trim((string)($_GET['ref'] ?? ''));
 $ref_id = null;
@@ -38,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } else {
     $username = trim($_POST['username']);
     $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+    $raw_password = (string)($_POST['password'] ?? '');
     $referrer = !empty($_POST['referrer_id']) ? (int)$_POST['referrer_id'] : null;
     if (!empty($referrer)) {
         $check_ref = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
@@ -53,19 +55,61 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     if ($checkEmail->rowCount() > 0) {
         $error = "Email already registered!";
+    } elseif (!isStrongPassword($raw_password)) {
+        $error = strongPasswordRuleText();
     } else {
-        $user_code = generateUniqueUserCode($pdo);
-        $sql = "INSERT INTO users (username, email, password, referrer_id, user_code) VALUES (?, ?, ?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        
-        if ($stmt->execute([$username, $email, $password, $referrer, $user_code])) {
-            if (!empty($referrer)) {
-                applyMilestoneBonus($pdo, $referrer);
-                updateUserRank($pdo, $referrer);
-            }
-            $success = "Registration successful! <a href='login.php'>Login here</a>";
-        } else {
-            $error = "Something went wrong. Please try again.";
+        try {
+            $password = password_hash($raw_password, PASSWORD_DEFAULT);
+            $user_code = generateUniqueUserCode($pdo);
+            $otp = (string)random_int(100000, 999999);
+            $otp_hash = hash('sha256', $otp);
+            $ip = getClientIpAddress();
+
+            $deactivate = $pdo->prepare(
+                "UPDATE registration_otps
+                 SET used_at = NOW()
+                 WHERE email = ? AND used_at IS NULL"
+            );
+            $deactivate->execute([strtolower(trim((string)$email))]);
+
+            $ins = $pdo->prepare(
+                "INSERT INTO registration_otps
+                 (username, email, password_hash, referrer_id, user_code, otp_hash, requested_ip, expires_at, used_at, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 60 SECOND), NULL, NOW())"
+            );
+            $ins->execute([
+                $username,
+                strtolower(trim((string)$email)),
+                $password,
+                $referrer ?: null,
+                $user_code,
+                $otp_hash,
+                $ip
+            ]);
+
+            queueNotification(
+                $pdo,
+                'email',
+                'registration_otp',
+                'Your Registration OTP',
+                "Your registration OTP is {$otp}. It is valid for 60 seconds.",
+                null,
+                strtolower(trim((string)$email)),
+                ['ip' => $ip]
+            );
+
+            processNotificationQueue(
+                $pdo,
+                5,
+                "channel = 'email' AND event_type = 'registration_otp' AND email_to = ?",
+                [strtolower(trim((string)$email))]
+            );
+
+            $_SESSION['register_verify_email'] = strtolower(trim((string)$email));
+            header("Location: verify_registration.php?email=" . rawurlencode(strtolower(trim((string)$email))));
+            exit();
+        } catch (Exception $e) {
+            $error = "Unable to send OTP right now. Please try again.";
         }
     }
     }
@@ -163,11 +207,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <div class="form-group">
             <label>Password</label>
             <div class="password-wrapper">
-                <input type="password" name="password" id="password" placeholder="••••••••" required>
+                <input type="password" name="password" id="password" placeholder="Enter strong password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 chars with uppercase, lowercase, number, and special character." required>
                 <button type="button" class="toggle-password" onclick="togglePassword()">
                     <i id="eye-icon" data-lucide="eye"></i>
                 </button>
             </div>
+            <small style="display:block;margin-top:8px;color:#64748b;font-size:12px;">At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special character.</small>
         </div>
 
         <input type="hidden" name="referrer_id" value="<?php echo $ref_id; ?>">
@@ -204,3 +249,4 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <script src="scroll_top.js"></script>
 </body>
 </html>
+

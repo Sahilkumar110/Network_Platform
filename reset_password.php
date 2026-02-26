@@ -166,8 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $password = (string)($_POST['password'] ?? '');
                     $confirm = (string)($_POST['confirm_password'] ?? '');
-                    if (strlen($password) < 8) {
-                        $message = 'Password must be at least 8 characters.';
+                    if (!isStrongPassword($password)) {
+                        $message = strongPasswordRuleText();
                         $message_type = 'error';
                     } elseif ($password !== $confirm) {
                         $message = 'Confirm password does not match.';
@@ -384,11 +384,11 @@ if ($email !== '' && !$otp_verified) {
             <input type="hidden" name="email" value="<?php echo htmlspecialchars($email); ?>">
             <div class="field">
                 <label>New Password</label>
-                <input type="password" name="password" minlength="8" required>
+                <input type="password" name="password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 chars with uppercase, lowercase, number, and special character." required>
             </div>
             <div class="field">
                 <label>Confirm Password</label>
-                <input type="password" name="confirm_password" minlength="8" required>
+                <input type="password" name="confirm_password" minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 chars with uppercase, lowercase, number, and special character." required>
             </div>
             <button type="submit" class="submit-btn">Save New Password</button>
         </form>

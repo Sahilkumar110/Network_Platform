@@ -10,6 +10,30 @@ function verifyCsrfToken($token) {
     return isset($_SESSION['csrf_token']) && is_string($token) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
+function isStrongPassword($password) {
+    $password = (string)$password;
+    if (strlen($password) < 8) {
+        return false;
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return false;
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return false;
+    }
+    if (!preg_match('/\d/', $password)) {
+        return false;
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return false;
+    }
+    return true;
+}
+
+function strongPasswordRuleText() {
+    return 'Password must be at least 8 characters and include 1 uppercase, 1 lowercase, 1 number, and 1 special character.';
+}
+
 function ensureLoginAttemptsTable($pdo) {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS login_attempts (
@@ -424,6 +448,26 @@ function ensurePasswordResetTokensTable($pdo) {
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY uniq_token_hash (token_hash),
             INDEX idx_user_created (user_id, created_at),
+            INDEX idx_expires_used (expires_at, used_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureRegistrationOtpsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS registration_otps (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(100) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            referrer_id INT DEFAULT NULL,
+            user_code VARCHAR(20) NOT NULL,
+            otp_hash CHAR(64) NOT NULL,
+            requested_ip VARCHAR(64) DEFAULT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME DEFAULT NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_email_created (email, created_at),
             INDEX idx_expires_used (expires_at, used_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
