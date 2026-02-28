@@ -5,6 +5,7 @@ include 'functions.php';
 ensureWalletLedgerTable($pdo);
 ensureNotificationQueueTable($pdo);
 ensureRegistrationOtpsTable($pdo);
+ensureGoogleAuthColumns($pdo);
 
 $ref_input = trim((string)($_GET['ref'] ?? ''));
 $ref_id = null;
@@ -33,85 +34,157 @@ if ($ref_input !== '') {
 }
 $error = "";
 $success = "";
+$google_client_id = trim((string)envValue('GOOGLE_CLIENT_ID', ''));
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = "Invalid session token. Please refresh and try again.";
     } else {
-    $username = trim($_POST['username']);
-    $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
-    $raw_password = (string)($_POST['password'] ?? '');
-    $referrer = !empty($_POST['referrer_id']) ? (int)$_POST['referrer_id'] : null;
-    if (!empty($referrer)) {
-        $check_ref = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
-        $check_ref->execute([$referrer]);
-        if (!$check_ref->fetchColumn()) {
-            $referrer = null;
+        $action = trim((string)($_POST['action'] ?? 'password_register'));
+        if ($action === 'google_signup') {
+            if ($google_client_id === '') {
+                $error = "Google sign up is not configured. Please contact admin.";
+            } else {
+                $verify = verifyGoogleIdToken((string)($_POST['google_id_token'] ?? ''), $google_client_id);
+                if (empty($verify['ok'])) {
+                    $error = "Google sign up failed. Please try again.";
+                } else {
+                    $email = strtolower(trim((string)$verify['email']));
+                    $google_sub = (string)$verify['sub'];
+                    $display_name = trim((string)$verify['name']);
+                    $referrer = !empty($_POST['google_referrer_id']) ? (int)$_POST['google_referrer_id'] : null;
+                    if (!empty($referrer)) {
+                        $check_ref = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+                        $check_ref->execute([$referrer]);
+                        if (!$check_ref->fetchColumn()) {
+                            $referrer = null;
+                        }
+                    }
+
+                    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+                    $stmt->execute([$email]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                    if (!$user) {
+                        $base_username = $display_name !== '' ? $display_name : strstr($email, '@', true);
+                        $base_username = trim(preg_replace('/\s+/', ' ', (string)$base_username));
+                        if ($base_username === '') {
+                            $base_username = 'GoogleUser';
+                        }
+                        $base_username = preg_replace('/[^a-zA-Z0-9 _.-]/', '', $base_username);
+                        if ($base_username === '') {
+                            $base_username = 'GoogleUser';
+                        }
+                        $username = $base_username . random_int(100, 999);
+
+                        $temp_password_hash = password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT);
+                        $user_code = generateUniqueUserCode($pdo);
+                        $ins = $pdo->prepare(
+                            "INSERT INTO users (username, email, google_sub, password, referrer_id, user_code)
+                             VALUES (?, ?, ?, ?, ?, ?)"
+                        );
+                        $ins->execute([$username, $email, $google_sub, $temp_password_hash, $referrer ?: null, $user_code]);
+
+                        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
+                        $stmt->execute([(int)$pdo->lastInsertId()]);
+                        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    } else {
+                        if (isset($user['google_sub']) && ((string)$user['google_sub'] === '' || $user['google_sub'] === null)) {
+                            $up = $pdo->prepare("UPDATE users SET google_sub = ? WHERE id = ?");
+                            $up->execute([$google_sub, (int)$user['id']]);
+                            $user['google_sub'] = $google_sub;
+                        }
+                    }
+
+                    if ($user && isset($user['status']) && $user['status'] === 'banned') {
+                        $error = "Your account has been suspended. Please contact support.";
+                    } elseif ($user) {
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['role'] = $user['role'];
+                        session_regenerate_id(true);
+                        header("Location: dashboard.php");
+                        exit();
+                    } else {
+                        $error = "Google sign up failed. Please try again.";
+                    }
+                }
+            }
+        } else {
+            $username = trim($_POST['username']);
+            $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+            $raw_password = (string)($_POST['password'] ?? '');
+            $referrer = !empty($_POST['referrer_id']) ? (int)$_POST['referrer_id'] : null;
+            if (!empty($referrer)) {
+                $check_ref = $pdo->prepare("SELECT id FROM users WHERE id = ? LIMIT 1");
+                $check_ref->execute([$referrer]);
+                if (!$check_ref->fetchColumn()) {
+                    $referrer = null;
+                }
+            }
+
+            $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $checkEmail->execute([$email]);
+
+            if ($checkEmail->rowCount() > 0) {
+                $error = "Email already registered!";
+            } elseif (!isStrongPassword($raw_password)) {
+                $error = strongPasswordRuleText();
+            } else {
+                try {
+                    $password = password_hash($raw_password, PASSWORD_DEFAULT);
+                    $user_code = generateUniqueUserCode($pdo);
+                    $otp = (string)random_int(100000, 999999);
+                    $otp_hash = hash('sha256', $otp);
+                    $ip = getClientIpAddress();
+
+                    $deactivate = $pdo->prepare(
+                        "UPDATE registration_otps
+                         SET used_at = NOW()
+                         WHERE email = ? AND used_at IS NULL"
+                    );
+                    $deactivate->execute([strtolower(trim((string)$email))]);
+
+                    $ins = $pdo->prepare(
+                        "INSERT INTO registration_otps
+                         (username, email, password_hash, referrer_id, user_code, otp_hash, requested_ip, expires_at, used_at, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 60 SECOND), NULL, NOW())"
+                    );
+                    $ins->execute([
+                        $username,
+                        strtolower(trim((string)$email)),
+                        $password,
+                        $referrer ?: null,
+                        $user_code,
+                        $otp_hash,
+                        $ip
+                    ]);
+
+                    queueNotification(
+                        $pdo,
+                        'email',
+                        'registration_otp',
+                        'Your Registration OTP',
+                        "Your registration OTP is {$otp}. It is valid for 60 seconds.",
+                        null,
+                        strtolower(trim((string)$email)),
+                        ['ip' => $ip]
+                    );
+
+                    processNotificationQueue(
+                        $pdo,
+                        5,
+                        "channel = 'email' AND event_type = 'registration_otp' AND email_to = ?",
+                        [strtolower(trim((string)$email))]
+                    );
+
+                    $_SESSION['register_verify_email'] = strtolower(trim((string)$email));
+                    header("Location: verify_registration.php?email=" . rawurlencode(strtolower(trim((string)$email))));
+                    exit();
+                } catch (Exception $e) {
+                    $error = "Unable to send OTP right now. Please try again.";
+                }
+            }
         }
-    }
-
-    $checkEmail = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-    $checkEmail->execute([$email]);
-    
-    if ($checkEmail->rowCount() > 0) {
-        $error = "Email already registered!";
-    } elseif (!isStrongPassword($raw_password)) {
-        $error = strongPasswordRuleText();
-    } else {
-        try {
-            $password = password_hash($raw_password, PASSWORD_DEFAULT);
-            $user_code = generateUniqueUserCode($pdo);
-            $otp = (string)random_int(100000, 999999);
-            $otp_hash = hash('sha256', $otp);
-            $ip = getClientIpAddress();
-
-            $deactivate = $pdo->prepare(
-                "UPDATE registration_otps
-                 SET used_at = NOW()
-                 WHERE email = ? AND used_at IS NULL"
-            );
-            $deactivate->execute([strtolower(trim((string)$email))]);
-
-            $ins = $pdo->prepare(
-                "INSERT INTO registration_otps
-                 (username, email, password_hash, referrer_id, user_code, otp_hash, requested_ip, expires_at, used_at, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 60 SECOND), NULL, NOW())"
-            );
-            $ins->execute([
-                $username,
-                strtolower(trim((string)$email)),
-                $password,
-                $referrer ?: null,
-                $user_code,
-                $otp_hash,
-                $ip
-            ]);
-
-            queueNotification(
-                $pdo,
-                'email',
-                'registration_otp',
-                'Your Registration OTP',
-                "Your registration OTP is {$otp}. It is valid for 60 seconds.",
-                null,
-                strtolower(trim((string)$email)),
-                ['ip' => $ip]
-            );
-
-            processNotificationQueue(
-                $pdo,
-                5,
-                "channel = 'email' AND event_type = 'registration_otp' AND email_to = ?",
-                [strtolower(trim((string)$email))]
-            );
-
-            $_SESSION['register_verify_email'] = strtolower(trim((string)$email));
-            header("Location: verify_registration.php?email=" . rawurlencode(strtolower(trim((string)$email))));
-            exit();
-        } catch (Exception $e) {
-            $error = "Unable to send OTP right now. Please try again.";
-        }
-    }
     }
 }
 ?>
@@ -169,6 +242,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .footer-link { text-align: center; margin-top: 25px; font-size: 14px; color: #64748b; }
         .footer-link a { color: var(--secondary); text-decoration: none; font-weight: 600; }
+        .auth-divider {
+            margin: 16px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .auth-divider::before, .auth-divider::after {
+            content: "";
+            height: 1px;
+            background: #e2e8f0;
+            flex: 1;
+        }
+        .google-signup-wrap {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
         
         .ref-badge { 
             background: #f1f5f9; padding: 10px; border-radius: 12px; 
@@ -220,6 +313,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <button type="submit" class="btn-register">Create Account</button>
     </form>
 
+    <?php if ($google_client_id !== ''): ?>
+    <div class="auth-divider">or</div>
+    <form method="POST" id="googleSignupForm">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
+        <input type="hidden" name="action" value="google_signup">
+        <input type="hidden" name="google_id_token" id="googleSignupTokenField" value="">
+        <input type="hidden" name="google_referrer_id" value="<?php echo (int)$ref_id; ?>">
+        <div class="google-signup-wrap" id="googleSignupButton"></div>
+    </form>
+    <?php endif; ?>
+
     <div class="footer-link">
         Already have an account? <a href="login.php">Log In</a>
     </div>
@@ -244,6 +348,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         lucide.createIcons();
     }
 </script>
+<?php if ($google_client_id !== ''): ?>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+    function handleGoogleSignupCredential(response) {
+        if (!response || !response.credential) {
+            return;
+        }
+        var tokenField = document.getElementById('googleSignupTokenField');
+        var form = document.getElementById('googleSignupForm');
+        if (!tokenField || !form) {
+            return;
+        }
+        tokenField.value = response.credential;
+        form.submit();
+    }
+
+    window.addEventListener('load', function () {
+        if (!window.google || !google.accounts || !google.accounts.id) {
+            return;
+        }
+        google.accounts.id.initialize({
+            client_id: "<?php echo htmlspecialchars($google_client_id, ENT_QUOTES); ?>",
+            callback: handleGoogleSignupCredential
+        });
+        google.accounts.id.renderButton(
+            document.getElementById("googleSignupButton"),
+            { theme: "outline", size: "large", shape: "pill", text: "signup_with", width: 320 }
+        );
+    });
+</script>
+<?php endif; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="scroll_top.js"></script>
