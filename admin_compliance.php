@@ -98,51 +98,58 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             padding: 2px 8px;
             border-radius: 20px;
             margin-bottom: 2px;
-            background: #fee2e2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
         }
+        .admin-bg { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
         .user-email { font-size: 13px; color: #64748b; }
-        .profile-menu { position: relative; margin: 0; }
-        .profile-trigger {
-            list-style: none;
-            cursor: pointer;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            border: none;
-            background: linear-gradient(135deg, #1e3a8a, #2563eb);
-            color: #fff;
-            font-weight: 800;
-            display: grid;
-            place-items: center;
-        }
+        .profile-menu { position: relative; }
+        .profile-menu summary { list-style: none; cursor: pointer; }
         .profile-menu summary::-webkit-details-marker { display: none; }
+        .profile-trigger {
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            border: 2px solid #dbeafe;
+            background: #1e3a8a;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 14px;
+        }
         .profile-card {
             position: absolute;
             right: 0;
-            top: calc(100% + 10px);
-            width: 220px;
-            background: #fff;
+            top: 46px;
+            width: 240px;
+            background: white;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
-            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.18);
-            padding: 10px;
-            z-index: 20;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+            padding: 12px;
+            z-index: 1200;
+            color: #1e293b;
         }
-        .profile-links { display: grid; gap: 6px; }
+        .profile-links {
+            margin-top: 8px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 8px;
+            display: grid;
+            gap: 6px;
+        }
         .profile-link {
             display: block;
-            padding: 8px 10px;
-            border-radius: 8px;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 700;
             color: #1e293b;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 10px;
         }
-        .profile-link:hover { background: #e2e8f0; }
-        .profile-link-danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+        .profile-link:hover { background: #eef2ff; }
+        .profile-link-danger { color: #dc2626; }
         .mobile-nav-toggle { display: none; border: 1px solid #dbeafe; background: #eff6ff; border-radius: 10px; padding: 8px 10px; cursor: pointer; }
         .page-title {
             margin: 18px 0 8px;
@@ -209,20 +216,22 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             .nav-container { flex-wrap: wrap; }
             .mobile-nav-toggle { display: inline-block; margin-left: auto; }
             .nav-right { width: 100%; display: none; }
-            .main-header.nav-open .nav-right { display: flex; justify-content: space-between; }
+            .main-header.nav-open .nav-right { display: grid; grid-template-columns: 1fr; gap: 10px; }
+            .user-info { text-align: center; }
+            .profile-menu { width: 100%; display: flex; justify-content: center; }
             .page-title { margin-top: 12px; }
         }
     </style>
-    <link rel="stylesheet" href="responsive.css">
+    <link rel="stylesheet" href="responsive.css?v=20260301">
 </head>
-<body class="admin-dashboard">
+<body class="admin-dashboard admin-compliance">
     <header class="main-header">
         <div class="nav-container">
             <a href="index.php" class="logo">NETWORK<span>PLATFORM</span></a>
             <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
             <div class="nav-right">
                 <div class="user-info">
-                    <span class="role-badge">ADMIN MODE</span>
+                    <span class="role-badge admin-bg">ADMIN MODE</span>
                     <span class="user-email">ID: <?php echo htmlspecialchars((string)$admin_user['user_code']); ?></span>
                 </div>
                 <details class="profile-menu">
@@ -230,10 +239,10 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <div class="profile-card">
                         <div class="profile-links">
                             <a class="profile-link" href="profile.php">Profile</a>
-                            <a class="profile-link" href="admin_withdrawals.php">Withdrawals</a>
-                            <a class="profile-link" href="admin_ledger.php">Ledger</a>
-                            <a class="profile-link" href="admin_compliance.php">Compliance</a>
+                            <a class="profile-link" href="admin_dashboard.php">Admin Dashboard</a>
                             <a class="profile-link" href="dashboard.php">User Dashboard</a>
+                            <a class="profile-link" href="admin_ledger.php">Ledger</a>
+                            <a class="profile-link" href="admin_withdrawals.php">Withdrawals</a>
                             <a class="profile-link profile-link-danger" href="logout.php">Logout</a>
                         </div>
                     </div>
@@ -293,6 +302,25 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             btn.addEventListener('click', function () {
                 var isOpen = header.classList.toggle('nav-open');
                 btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+
+            header.querySelectorAll('a').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    header.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                });
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!header.contains(e.target)) {
+                    header.classList.remove('nav-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                }
+                document.querySelectorAll('.profile-menu').forEach(function (menu) {
+                    if (!menu.contains(e.target)) {
+                        menu.removeAttribute('open');
+                    }
+                });
             });
         })();
     </script>

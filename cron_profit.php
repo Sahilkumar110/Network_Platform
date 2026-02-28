@@ -30,6 +30,7 @@ try {
 
     $processed = 0;
     $skipped = 0;
+    $failed = 0;
     $total_profit = 0.00;
     $daily_description = "Daily 1% fixed on wallet + investment amount [{$today}]";
 
@@ -47,7 +48,15 @@ try {
     );
 
     foreach ($users as $user) {
-        $base_amount = (float)$user['investment_amount'] + (float)$user['wallet_balance'];
+        $investment_amount = (float)$user['investment_amount'];
+        $wallet_balance = (float)$user['wallet_balance'];
+
+        if ($wallet_balance < 0) {
+            $skipped++;
+            continue;
+        }
+
+        $base_amount = max(0, $investment_amount) + max(0, $wallet_balance);
         $profit = round($base_amount * $rate_decimal, 2);
         if ($profit <= 0) {
             continue;
@@ -60,19 +69,28 @@ try {
             continue;
         }
 
-        applyWalletDelta(
-            $pdo,
-            (int)$user['id'],
-            $profit,
-            'daily_profit',
-            $daily_description,
-            'cron_profit',
-            null
-        );
-        $profit_log->execute([$user['id'], $profit, $daily_description]);
+        try {
+            applyWalletDelta(
+                $pdo,
+                (int)$user['id'],
+                $profit,
+                'daily_profit',
+                $daily_description,
+                'cron_profit',
+                null
+            );
+            $profit_log->execute([$user['id'], $profit, $daily_description]);
 
-        $processed++;
-        $total_profit += $profit;
+            $processed++;
+            $total_profit += $profit;
+        } catch (Exception $userError) {
+            $failed++;
+            appLog('warning', 'Daily profit skipped for user', [
+                'user_id' => (int)$user['id'],
+                'reason' => $userError->getMessage()
+            ]);
+            continue;
+        }
     }
 
     // Keep all ranks consistent in one pass after profit distribution.
@@ -82,7 +100,7 @@ try {
     $mark_run->execute([$today]);
 
     $pdo->commit();
-    $msg = "Daily profit processed for $processed users at $rate_percent%. Skipped (already credited today): $skipped. Total credited: $" . number_format($total_profit, 2);
+    $msg = "Daily profit processed for $processed users at $rate_percent%. Skipped: $skipped. Failed: $failed. Total credited: $" . number_format($total_profit, 2);
     logCronRun($pdo, 'cron_profit', 'success', $msg);
     echo $msg;
 } catch (Exception $e) {

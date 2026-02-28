@@ -13,7 +13,7 @@ ensureKycProfilesTable($pdo);
 ensureUserCode($pdo, $user_id);
 updateUserRank($pdo, $user_id);
 
-$stmt = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance, investment_amount, user_code, created_at FROM users WHERE id = ? LIMIT 1");
+$stmt = $pdo->prepare("SELECT id, username, email, role, status, user_rank, wallet_balance, investment_amount, user_code, created_at FROM users WHERE id = ? LIMIT 1");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -123,6 +123,9 @@ $is_admin = (($user['role'] ?? 'user') === 'admin');
                 <span class="pill"><?php echo strtoupper(htmlspecialchars((string)$user['role'])); ?></span>
                 <span class="pill"><?php echo htmlspecialchars((string)$user['user_rank']); ?></span>
                 <span class="pill"><?php echo htmlspecialchars((string)$user['user_code']); ?></span>
+                <span class="pill <?php echo (($user['status'] ?? 'active') === 'active') ? 'ok' : 'bad'; ?>">
+                    <?php echo strtoupper(htmlspecialchars((string)($user['status'] ?? 'active'))); ?>
+                </span>
             </p>
         </div>
         <div class="avatar"><?php echo htmlspecialchars($initial); ?></div>
@@ -163,10 +166,10 @@ $is_admin = (($user['role'] ?? 'user') === 'admin');
     <section class="grid">
         <div class="card list">
             <div class="label">Account Details</div>
-            <div class="row"><strong>User ID:</strong> <?php echo htmlspecialchars((string)$user['user_code']); ?></div>
+            <div class="row"><strong>Internal ID:</strong> #<?php echo (int)$user['id']; ?></div>
             <div class="row"><strong>Joined:</strong> <?php echo date('M d, Y', strtotime((string)$user['created_at'])); ?></div>
-            <div class="row"><strong>Role:</strong> <?php echo htmlspecialchars((string)$user['role']); ?></div>
-            <div class="row"><strong>Rank:</strong> <?php echo htmlspecialchars((string)$user['user_rank']); ?></div>
+            <div class="row"><strong>Dashboard:</strong> <?php echo $is_admin ? 'Admin Dashboard' : 'User Dashboard'; ?></div>
+            <div class="row"><strong>Session Role:</strong> <?php echo $is_admin ? 'Admin' : 'User'; ?></div>
         </div>
         <div class="card list">
             <div class="label">Request Overview</div>

@@ -58,6 +58,28 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
             margin: 0 auto;
             padding: 40px 20px;
         }
+        .page-hero {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 18px 20px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+            margin-bottom: 20px;
+        }
+        .page-title {
+            margin: 0;
+            font-size: clamp(24px, 3.1vw, 36px);
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            color: var(--text-dark);
+            font-weight: 800;
+        }
+        .page-subtitle {
+            margin: 8px 0 0;
+            color: var(--text-light);
+            font-size: 14px;
+            line-height: 1.45;
+        }
 
         /* Nav Header same as Admin */
         .main-header {
@@ -369,6 +391,13 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
             .logo {
                 font-size: 18px;
             }
+            .page-hero {
+                padding: 14px;
+                margin-bottom: 14px;
+            }
+            .page-subtitle {
+                font-size: 13px;
+            }
             .logout-btn {
                 width: 100%;
                 justify-content: center;
@@ -389,7 +418,7 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
             }
         }
     </style>
-    <link rel="stylesheet" href="responsive.css">
+    <link rel="stylesheet" href="responsive.css?v=20260301">
 </head>
 <body class="user-dashboard">
 
@@ -424,7 +453,10 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
 </header>
 
 <div class="container">
-    <h1 class="page-title">Welcome back, <?php echo htmlspecialchars($user['username']); ?>!</h1>
+    <section class="page-hero">
+        <h1 class="page-title">Welcome back, <?php echo htmlspecialchars($user['username']); ?>!</h1>
+        <p class="page-subtitle">Member ID: <?php echo htmlspecialchars((string)$user['user_code']); ?> | Rank: <?php echo htmlspecialchars((string)$user['user_rank']); ?></p>
+    </section>
     <div class="theme-banner">
         <div class="theme-banner-text">
             <h3>Track Daily Profit and Team Growth</h3>
@@ -554,6 +586,17 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
 
 <script>
     (function () {
+        function syncHeaderOffset() {
+            var header = document.querySelector('.main-header');
+            if (!header) return;
+            var extra = window.innerWidth <= 768 ? 18 : 16;
+            var offset = header.offsetHeight + extra;
+            document.body.style.setProperty('padding-top', offset + 'px', 'important');
+        }
+
+        syncHeaderOffset();
+        window.addEventListener('resize', syncHeaderOffset);
+
         var toggles = document.querySelectorAll('.mobile-nav-toggle');
         toggles.forEach(function (btn) {
             var header = btn.closest('.landing-header, .main-header, .header');
@@ -562,11 +605,13 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                 e.stopPropagation();
                 var isOpen = header.classList.toggle('nav-open');
                 btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                setTimeout(syncHeaderOffset, 0);
             });
             header.querySelectorAll('a').forEach(function (link) {
                 link.addEventListener('click', function () {
                     header.classList.remove('nav-open');
                     btn.setAttribute('aria-expanded', 'false');
+                    setTimeout(syncHeaderOffset, 0);
                 });
             });
         });
@@ -576,6 +621,7 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                 if (!header || header.contains(e.target)) return;
                 header.classList.remove('nav-open');
                 btn.setAttribute('aria-expanded', 'false');
+                setTimeout(syncHeaderOffset, 0);
             });
         });
     })();
