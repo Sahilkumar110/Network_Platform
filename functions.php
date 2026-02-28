@@ -436,6 +436,18 @@ function ensureGoogleAuthColumns($pdo) {
     }
 }
 
+function ensureUserProfileImageColumn($pdo) {
+    try {
+        $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'profile_image'");
+        $exists = $stmt && $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$exists) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) DEFAULT NULL AFTER user_code");
+        }
+    } catch (Exception $e) {
+        // Non-fatal: profile still works without image column.
+    }
+}
+
 function ensurePasswordResetTokensTable($pdo) {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS password_reset_tokens (
