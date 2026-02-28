@@ -1,165 +1,282 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About | Network Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="responsive.css">
     <style>
-        :root { --primary: #1e3a8a; --secondary: #3b82f6; --dark: #0f172a; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; color: #1e293b; background: #f8fafc; }
-        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
-        .landing-header {
-            padding: 16px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
         }
-        .brand { font-weight: 800; font-size: 24px; color: var(--primary); letter-spacing: -0.5px; text-decoration: none; }
-        .brand span { color: var(--secondary); font-weight: 500; }
-        .header-actions { display: flex; align-items: center; gap: 12px; }
-        .header-link {
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #0f172a;
+            background: #f3f6fb;
+        }
+        body.landing-page {
+            padding-top: 76px !important;
+            margin-top: 0 !important;
+        }
+        .topbar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            z-index: 5000 !important;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #dbe2ee;
+        }
+        .brand {
+            font-size: 1.7rem;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            color: #1e3a8a;
             text-decoration: none;
-            color: var(--dark);
+        }
+        .brand span { color: #3b82f6; font-weight: 500; }
+        .nav-link {
             font-weight: 700;
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            color: #1f2937 !important;
+            border-radius: 10px;
+            padding: 8px 12px !important;
         }
-        .header-link.active { background: #dbeafe; border-color: #93c5fd; color: #1e3a8a; }
+        .nav-link:hover, .nav-link.active {
+            background: #eef4ff;
+            color: #1e3a8a !important;
+        }
+        .btn-join {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border: 1px solid #1d4ed8;
+            color: #fff;
+            border-radius: 10px;
+            font-weight: 700;
+            padding: 8px 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
         .hero {
-            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
-            color: #ffffff;
-            padding: 72px 20px;
-            text-align: center;
+            min-height: 48vh;
+            display: flex;
+            align-items: center;
+            background:
+                linear-gradient(110deg, rgba(15, 23, 42, 0.9), rgba(30, 58, 138, 0.8)),
+                url("https://images.unsplash.com/photo-1488998527040-85054a85150e?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat;
+            color: #fff;
         }
-        .hero h1 { margin: 0 0 12px; font-size: clamp(34px, 5vw, 52px); }
-        .hero p { margin: 0 auto; max-width: 760px; color: #cbd5e1; }
-        .section { padding: 56px 0; }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3.4rem);
+            line-height: 1.04;
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            max-width: 760px;
         }
-        .card {
-            background: #ffffff;
+        .hero p {
+            color: #dbeafe;
+            max-width: 740px;
+            margin-bottom: 0;
+            font-size: 1.05rem;
+        }
+        .section {
+            padding: 72px 0;
+        }
+        .section-title {
+            font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+            letter-spacing: -0.03em;
+            margin-bottom: 12px;
+            font-weight: 800;
+        }
+        .section-subtitle {
+            color: #64748b;
+            max-width: 760px;
+            margin: 0 auto 26px;
+        }
+        .glass-panel {
+            background: #fff;
             border: 1px solid #e2e8f0;
-            border-radius: 16px;
+            border-radius: 18px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
             padding: 22px;
+            height: 100%;
         }
-        .card h3 { margin: 0 0 8px; color: #0f172a; }
-        .card p { margin: 0; color: #64748b; }
-        .footer {
-            background: var(--dark);
-            color: #ffffff;
-            text-align: center;
-            padding: 48px 20px;
+        .icon-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: #eaf2ff;
+            color: #1e3a8a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            font-weight: 800;
         }
-        .footer a { color: #cbd5e1; text-decoration: none; margin: 0 8px; }
-        @media (max-width: 768px) {
-            .landing-header { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
-            .header-actions { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
-            .header-link { text-align: center; }
+        .media-card img {
+            width: 100%;
+            height: 220px;
+            object-fit: cover;
+            border-radius: 14px;
+            border: 1px solid #dbeafe;
+            margin-bottom: 12px;
+        }
+.site-footer {
+            margin-top: 52px;
+            background: #0b1220;
+            color: #dbe4f3;
+            border-top: 1px solid #23324d;
+        }
+        .site-footer a { color: #c7d9ff; text-decoration: none; }
+        .site-footer a:hover { color: #fff; }
+        @media (max-width: 991.98px) {
+            body.landing-page {
+                padding-top: 70px !important;
+            }
+            .section { padding: 56px 0; }
+            .hero { min-height: 42vh; }
         }
     </style>
-    <link rel="stylesheet" href="responsive.css">
 </head>
 <body class="landing-page">
-    <header class="landing-header">
-        <a href="index.php" class="brand">NETWORK<span>PLATFORM</span></a>
-        <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
-        <div class="header-actions">
-            <a href="about.php" class="header-link active">About</a>
-            <a href="news.php" class="header-link">News & Events</a>
-            <a href="contact.php" class="header-link">Contact</a>
-            <a href="login.php" class="header-link">Login</a>
-            <a href="register.php" class="header-link">Join Now</a>
-        </div>
-    </header>
 
-    <section class="hero">
+<header class="topbar">
+    <nav class="navbar navbar-expand-lg py-2">
         <div class="container">
-            <h1>About Network Platform</h1>
-            <p>Network Platform is focused on daily growth plans and team-based referral expansion with a transparent user and admin dashboard experience.</p>
+            <a class="brand" href="index.php">NETWORK<span>PLATFORM</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+                    <li class="nav-item"><a class="nav-link active" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="news.php">News & Events</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.php">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>
+                    <li class="nav-item ms-lg-2"><a class="btn-join mt-2 mt-lg-0" href="register.php">Join Now</a></li>
+                </ul>
+            </div>
         </div>
-    </section>
+    </nav>
+</header>
 
-    <section class="section">
-        <div class="container">
-            <h2 class="page-title">What We Provide</h2>
-            <div class="grid">
-                <div class="card">
-                    <h3>Daily Profit Model</h3>
-                    <p>Members can track daily earning movement directly from their dashboards with clear wallet visibility.</p>
+<section class="hero">
+    <div class="container">
+        <h1>About Network Platform</h1>
+        <p>Network Platform is built for structured member growth, transparent finance tracking, and a robust referral ecosystem from user to admin level.</p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container text-center">
+        <h2 class="section-title">What Makes The Platform Strong</h2>
+        <p class="section-subtitle">The architecture is focused on clarity, secure access, and measurable progression across investment, referral, and withdrawal operations.</p>
+        <div class="row g-3 text-start">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel">
+                    <div class="icon-badge">01</div>
+                    <h5>Transparent User Dashboard</h5>
+                    <p class="mb-0 text-secondary">Users see wallet status, referral activity, and withdrawal readiness in one clean interface.</p>
                 </div>
-                <div class="card">
-                    <h3>Referral Depth System</h3>
-                    <p>A structured 5-level referral system supports long-term network building and commission growth.</p>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel">
+                    <div class="icon-badge">02</div>
+                    <h5>Admin Control and Monitoring</h5>
+                    <p class="mb-0 text-secondary">Admin panel handles balances, requests, KYC, and operations with direct visibility and control.</p>
                 </div>
-                <div class="card">
-                    <h3>Admin Oversight</h3>
-                    <p>Operational controls for approvals, balances, requests, and activity logs are centralized in admin mode.</p>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel">
+                    <div class="icon-badge">03</div>
+                    <h5>Referral Engine</h5>
+                    <p class="mb-0 text-secondary">Multi-level referral structure supports network expansion with clear commission mapping.</p>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <footer class="site-footer">
-        <div class="site-footer-inner">
-            <div class="site-footer-grid">
-                <div>
-                    <h3 class="site-footer-title">NETWORK PLATFORM</h3>
-                    <p class="site-footer-text">Trusted investment workflows, daily growth model, and structured referral expansion.</p>
+<section class="section pt-0">
+    <div class="container">
+        <div class="glass-panel">
+            <h4 class="mb-3">Core Principles</h4>
+            <div class="row g-3">
+                <div class="col-12 col-md-4"><strong>Security:</strong> OTP flows, CSRF checks, and strong-password policy.</div>
+                <div class="col-12 col-md-4"><strong>Reliability:</strong> Daily profit and notification workflows with queue processing.</div>
+                <div class="col-12 col-md-4"><strong>Scalability:</strong> Modular pages for members, admin, and compliance features.</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section pt-0">
+    <div class="container text-center">
+        <h2 class="section-title">Behind The Platform</h2>
+        <p class="section-subtitle">A professional operation model combining technology workflows, member support structure, and transparent administration.</p>
+        <div class="row g-3 text-start">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80" alt="Team collaboration room">
+                    <h5>Support Operations</h5>
+                    <p class="mb-0 text-secondary">Dedicated process flow for onboarding, KYC, ticket handling, and user issue resolution.</p>
                 </div>
-                <div class="site-footer-links">
-                    <a href="about.php">About</a>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80" alt="Professional office operations">
+                    <h5>Admin Workflow</h5>
+                    <p class="mb-0 text-secondary">Structured approval layers for withdrawals, investments, and compliance monitoring.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80" alt="Business strategy session">
+                    <h5>Strategic Growth</h5>
+                    <p class="mb-0 text-secondary">Long-term architecture designed around referral depth, data transparency, and controlled scaling.</p>
+                </div>
+            </div>
+        </div>
+        </div>
+</section>
+
+<footer class="site-footer py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-12 col-md-4">
+                <h5 class="fw-bold mb-2">Network Platform</h5>
+                <p class="mb-0 text-secondary">Professional referral and growth platform experience for mobile and desktop users.</p>
+            </div>
+            <div class="col-6 col-md-4">
+                <h6 class="text-light">Pages</h6>
+                <div class="d-grid gap-1">
+                    <a href="index.php">Home</a>
                     <a href="news.php">News & Events</a>
-                    <a href="contact.php">Contact Details</a>
-                    <a href="register.php">Join Now</a>
-                </div>
-                <div class="site-footer-metrics">
-                    <div>Plans: Starter and Pro</div>
-                    <div>Referral Depth: 5 Levels</div>
-                    <div>Support Window: 6 Days / Week</div>
+                    <a href="contact.php">Contact</a>
                 </div>
             </div>
-            <div class="site-footer-copy">&copy; <?php echo date('Y'); ?> Network Platform</div>
+            <div class="col-6 col-md-4">
+                <h6 class="text-light">Access</h6>
+                <div class="d-grid gap-1">
+                    <a href="register.php">Join Now</a>
+                    <a href="login.php">Member Login</a>
+                    <a href="admin_dashboard.php">Admin Dashboard</a>
+                </div>
+            </div>
         </div>
-    </footer>
-    <script>
-        (function () {
-            var toggles = document.querySelectorAll('.mobile-nav-toggle');
-            toggles.forEach(function (btn) {
-                var header = btn.closest('.landing-header, .main-header, .header');
-                if (!header) return;
-                btn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    var isOpen = header.classList.toggle('nav-open');
-                    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-                });
-                header.querySelectorAll('a').forEach(function (link) {
-                    link.addEventListener('click', function () {
-                        header.classList.remove('nav-open');
-                        btn.setAttribute('aria-expanded', 'false');
-                    });
-                });
-            });
-            document.addEventListener('click', function (e) {
-                toggles.forEach(function (btn) {
-                    var header = btn.closest('.landing-header, .main-header, .header');
-                    if (!header || header.contains(e.target)) return;
-                    header.classList.remove('nav-open');
-                    btn.setAttribute('aria-expanded', 'false');
-                });
-            });
-        })();
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <hr class="border-secondary my-4">
+        <small class="text-secondary">&copy; <?php echo date('Y'); ?> Network Platform. All rights reserved.</small>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="scroll_top.js"></script>
 </body>
 </html>
+
+

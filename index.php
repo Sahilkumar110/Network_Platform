@@ -1,10 +1,9 @@
-<?php
-include 'db.php'; // Ensure database connection to fetch real stats
+﻿<?php
+include 'db.php';
 
-// Fetch real-time stats from your database
 try {
-    $total_members = $pdo->query("SELECT COUNT(id) FROM users")->fetchColumn();
-    $total_paid = $pdo->query("SELECT SUM(amount) FROM withdrawals WHERE status = 'approved'")->fetchColumn() ?? 0;
+    $total_members = (int)$pdo->query("SELECT COUNT(id) FROM users")->fetchColumn();
+    $total_paid = (float)($pdo->query("SELECT SUM(amount) FROM withdrawals WHERE status = 'approved'")->fetchColumn() ?? 0);
 } catch (Exception $e) {
     $total_members = 0;
     $total_paid = 0;
@@ -13,507 +12,486 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Platform | Grow Your Wealth</title>
-<style>
-        :root { --primary: #1e3a8a; --secondary: #3b82f6; --dark: #0f172a; --success: #10b981; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; color: #333; line-height: 1.6; background: #fff; }
-        
-        /* Layout Helpers */
-        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
-
-        /* Hero Section */
-        .hero { 
-            background: linear-gradient(135deg, var(--dark) 0%, var(--primary) 100%);
-            color: white; padding: 100px 20px; text-align: center;
+    <title>Network Platform | Smart Growth Network</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="responsive.css">
+    <style>
+        :root {
+            --brand-dark: #0f172a;
+            --brand-mid: #1e3a8a;
+            --brand-accent: #3b82f6;
+            --brand-soft: #eaf2ff;
+            --text-soft: #cbd5e1;
         }
-        .hero h1 { font-size: 3.5rem; margin-bottom: 20px; letter-spacing: -1px; }
-        .hero p { font-size: 1.25rem; max-width: 700px; margin: 0 auto 30px; opacity: 0.9; }
-        
-        /* Stats Bar */
-        .stats-bar { background: #111827; color: white; padding: 40px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .stats-grid-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; text-align: center; }
-        .stat-val { font-size: 2rem; font-weight: 800; color: var(--secondary); margin-bottom: 5px; }
-        .stat-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
-
-        /* Pricing Section */
-        .pricing { padding: 80px 0; background: #f8fafc; text-align: center; }
-        .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 50px; }
-        .plan-card { 
-            background: white; padding: 40px; border-radius: 24px; 
-            border: 1px solid #e2e8f0; transition: 0.3s; position: relative; 
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
         }
-        .plan-card:hover { transform: translateY(-10px); box-shadow: 0 20px 40px rgba(0,0,0,0.05); }
-        .plan-card.popular { border: 2px solid var(--secondary); }
-        .badge { 
-            background: var(--secondary); color: white; padding: 5px 15px; 
-            border-radius: 20px; font-size: 12px; font-weight: bold; 
-            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
-        }
-        .price { font-size: 3rem; font-weight: 800; margin: 20px 0; color: var(--dark); }
-        .price span { font-size: 1rem; color: #64748b; }
-
-        /* How It Works */
-        .steps { padding: 80px 0; text-align: center; }
-        .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; margin-top: 50px; }
-        .step-num { 
-            width: 50px; height: 50px; background: var(--primary); color: white; 
-            border-radius: 50%; line-height: 50px; margin: 0 auto 20px; font-weight: bold; font-size: 1.2rem;
-        }
-
-        /* Common Buttons */
-        .cta-buttons { display: flex; justify-content: center; gap: 20px; }
-        .btn { padding: 15px 35px; border-radius: 50px; text-decoration: none; font-weight: bold; transition: 0.3s; display: inline-block; }
-        .btn-primary { background: var(--secondary); color: white; }
-        .btn-secondary { border: 2px solid white; color: white; }
-        .btn-full { width: 100%; box-sizing: border-box; margin-top: 20px; }
-        .btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
-
-        .features { padding: 80px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 40px; }
-        .feature-card { text-align: center; padding: 30px; background: #f8fafc; border-radius: 20px; }
-
-        .landing-header {
-            padding: 16px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            max-width: none;
+        body {
             margin: 0;
-            gap: 12px;
-            background: #ffffff;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: #0f172a;
+            background: #f3f6fb;
+        }
+        body.landing-page { margin-top: 0 !important; }
+        .topbar {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            z-index: 5000 !important;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #dbe2ee;
         }
         .brand {
-            font-weight: 800;
-            font-size: 24px;
-            color: var(--primary);
-            letter-spacing: -0.5px;
+            font-size: 1.7rem;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            color: var(--brand-mid);
+            text-decoration: none;
         }
-        .brand span { color: var(--secondary); font-weight: 500; }
-        .header-actions {
+        .brand span {
+            color: var(--brand-accent);
+            font-weight: 500;
+        }
+        .nav-link {
+            font-weight: 700;
+            color: #1f2937 !important;
+            border-radius: 10px;
+            padding: 8px 12px !important;
+        }
+        .nav-link:hover {
+            background: #eef4ff;
+        }
+        .btn-join {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border: 1px solid #1d4ed8;
+            color: #fff;
+            border-radius: 10px;
+            font-weight: 700;
+            padding: 8px 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .hero {
+            min-height: 88vh;
             display: flex;
             align-items: center;
-            gap: 12px;
+            position: relative;
+            overflow: hidden;
+            background:
+                linear-gradient(110deg, rgba(15, 23, 42, 0.92), rgba(30, 58, 138, 0.82)),
+                url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat;
         }
-        .header-login {
-            text-decoration: none;
-            color: var(--dark);
-            font-weight: 700;
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: #f1f5f9;
-            border: 1px solid #e2e8f0;
+        .public-main {
+            padding-top: 76px;
         }
-        .header-link {
-            text-decoration: none;
-            color: var(--dark);
-            font-weight: 700;
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-        }
-        .header-link:hover {
-            background: #f8fafc;
-        }
-        .trust {
-            padding: 80px 0;
-            background: #ffffff;
-        }
-        .trust-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 24px;
-            margin-top: 24px;
-        }
-        .trust-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 18px;
-            padding: 24px;
-        }
-        .trust-card h3 {
-            margin: 0 0 8px;
-            color: #0f172a;
-        }
-        .insights {
-            padding: 80px 0;
-            background: #f8fafc;
-        }
-        .insights-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-            margin-top: 24px;
-        }
-        .insight-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 18px;
-            padding: 18px;
-        }
-        .insight-card img {
+        .media-card img {
             width: 100%;
-            height: 180px;
+            height: 220px;
             object-fit: cover;
-            border-radius: 12px;
+            border-radius: 14px;
             border: 1px solid #dbeafe;
-            background: #eff6ff;
             margin-bottom: 12px;
         }
-        .insight-card h3 {
-            margin: 0 0 8px;
-            color: #0f172a;
+.hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -20% -190px -20%;
+            height: 280px;
+            background: radial-gradient(closest-side, rgba(59, 130, 246, 0.35), transparent);
         }
-        .insight-card p {
-            margin: 0;
-            color: #64748b;
+        .hero-inner {
+            position: relative;
+            z-index: 2;
+            color: #fff;
         }
-        .timeline {
-            padding: 80px 0;
-            background: #ffffff;
-        }
-        .timeline-wrap {
-            margin-top: 24px;
-            display: grid;
-            gap: 14px;
-        }
-        .timeline-item {
-            display: grid;
-            grid-template-columns: 140px 1fr;
-            gap: 14px;
-            align-items: center;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 14px;
-        }
-        .timeline-step {
-            background: #1e3a8a;
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 700;
+        .hero-kicker {
+            font-size: 0.8rem;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            border-radius: 999px;
-            text-align: center;
-            padding: 8px 10px;
+            color: #93c5fd;
+            font-weight: 700;
+            margin-bottom: 12px;
         }
-        .timeline-item h4 {
-            margin: 0 0 4px;
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 4.2rem);
+            line-height: 1.02;
+            letter-spacing: -0.04em;
+            margin-bottom: 18px;
+            max-width: 860px;
+        }
+        .hero p {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-soft);
+            max-width: 760px;
+            margin-bottom: 28px;
+        }
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .hero-btn {
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .hero-btn-primary {
+            background: #3b82f6;
+            color: #fff;
+            border: 1px solid #3b82f6;
+        }
+        .hero-btn-ghost {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            color: #fff;
+        }
+        .stat-strip {
+            margin-top: -42px;
+            position: relative;
+            z-index: 10;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+            padding: 18px;
+            height: 100%;
+        }
+        .stat-label {
+            margin: 0 0 6px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+            font-weight: 700;
+        }
+        .stat-value {
+            margin: 0;
+            font-size: clamp(1.4rem, 2.4vw, 2rem);
+            font-weight: 800;
             color: #0f172a;
         }
-        .timeline-item p {
-            margin: 0;
-            color: #64748b;
-            font-size: 14px;
+        .section {
+            padding: 72px 0;
         }
-
-        @media (max-width: 768px) {
-            .landing-header {
-                flex-direction: column;
-                align-items: stretch;
-                padding: 12px;
+        .section-title {
+            font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+            letter-spacing: -0.03em;
+            margin-bottom: 10px;
+            font-weight: 800;
+        }
+        .section-subtitle {
+            color: #64748b;
+            max-width: 760px;
+            margin: 0 auto 28px;
+        }
+        .glass-panel {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            padding: 22px;
+            height: 100%;
+        }
+        .icon-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--brand-soft);
+            color: var(--brand-mid);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            font-weight: 800;
+        }
+        .plan {
+            background: linear-gradient(180deg, #ffffff, #f8fbff);
+        }
+        .plan .rate {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 10px 0 14px;
+        }
+        .plan ul {
+            padding-left: 18px;
+            color: #475569;
+            margin-bottom: 18px;
+        }
+        .plan .btn {
+            border-radius: 10px;
+            font-weight: 700;
+        }
+        .cta-band {
+            background: linear-gradient(120deg, #0f172a, #1e3a8a);
+            border-radius: 24px;
+            color: #fff;
+            padding: 34px 24px;
+            border: 1px solid #1e3a8a;
+            box-shadow: 0 22px 38px rgba(2, 6, 23, 0.24);
+        }
+        .cta-band p {
+            color: #dbeafe;
+            margin: 0;
+        }
+        .site-footer {
+            margin-top: 56px;
+            background: #0b1220;
+            color: #dbe4f3;
+            border-top: 1px solid #23324d;
+        }
+        .site-footer a {
+            color: #c7d9ff;
+            text-decoration: none;
+        }
+        .site-footer a:hover {
+            color: #ffffff;
+        }
+        @media (max-width: 991.98px) {
+            .public-main { padding-top: 70px; }
+            .hero {
+                min-height: 76vh;
+                background-position: 58% center;
             }
-            .brand {
-                text-align: center;
-                font-size: 22px;
+            .stat-strip {
+                margin-top: 16px;
             }
-            .header-actions {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-                width: 100%;
-            }
-            .header-login,
-            .header-link,
-            .header-actions .btn {
-                width: 100%;
-                text-align: center;
-                margin: 0;
-                justify-content: center;
-                padding: 12px 14px;
-            }
-            .timeline-item {
-                grid-template-columns: 1fr;
+            .section {
+                padding: 56px 0;
             }
         }
     </style>
-    <link rel="stylesheet" href="responsive.css">
 </head>
 <body class="landing-page">
 
-    <header class="landing-header">
-        <div class="brand">NETWORK<span>PLATFORM</span></div>
-        <button type="button" class="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false">&#9776;</button>
-        <div class="header-actions">
-            <a href="about.php" class="header-link">About</a>
-            <a href="news.php" class="header-link">News & Events</a>
-            <a href="contact.php" class="header-link">Contact</a>
-            <a href="login.php" class="header-login">Login</a>
-            <a href="register.php" class="btn btn-primary" style="padding: 10px 25px;">Join Now</a>
-        </div>
-    </header>
-
-    <section class="hero">
+<header class="topbar" style="position:fixed;top:0;left:0;right:0;z-index:5000;">
+    <nav class="navbar navbar-expand-lg py-2">
         <div class="container">
-            <h1>Smart Investing for the Modern Era</h1>
-            <p>Join our 5-level referral network and start earning 1% daily profit on your investments today.</p>
-            <div class="cta-buttons">
-                <a href="register.php" class="btn btn-primary">Get Started Now</a>
-                <a href="login.php" class="btn btn-secondary">Member Login</a>
-            </div>
-            <div style="margin-top:26px;">
-                <img src="assets/invest-growth.svg" alt="Investment growth chart" style="max-width:760px; width:100%; border-radius:20px; border:1px solid rgba(255,255,255,0.18); background:#fff;">
+            <a class="brand" href="index.php">NETWORK<span>PLATFORM</span></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+                    <li class="nav-item"><a class="nav-link" href="about.php">About</a></li>
+                    <li class="nav-item"><a class="nav-link" href="news.php">News & Events</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.php">Contact</a></li>
+                    <li class="nav-item"><a class="nav-link" href="login.php">Login</a></li>
+                    <li class="nav-item ms-lg-2"><a class="btn-join mt-2 mt-lg-0" href="register.php">Join Now</a></li>
+                </ul>
             </div>
         </div>
-    </section>
+    </nav>
+</header>
 
-    <section class="stats-bar">
-        <div class="container">
-            <div class="stats-grid-box">
-                <div>
-                    <div class="stat-val"><?php echo number_format($total_members + 1500); ?>+</div>
-                    <div class="stat-label">Active Investors</div>
+<main class="public-main">
+<section class="hero">
+    <div class="container hero-inner">
+        <div class="hero-kicker">Smart Referral Finance</div>
+        <h1>Build a Strong Network. Track Daily Growth. Withdraw with Clarity.</h1>
+        <p>Network Platform combines fixed daily profit logic with a 5-level referral structure, giving users transparent growth and admins complete operational control.</p>
+        <div class="hero-actions">
+            <a href="register.php" class="hero-btn hero-btn-primary">Get Started</a>
+            <a href="login.php" class="hero-btn hero-btn-ghost">Member Login</a>
+        </div>
+    </div>
+</section>
+
+<section class="stat-strip pb-2">
+    <div class="container">
+        <div class="row g-3">
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <p class="stat-label">Registered Members</p>
+                    <p class="stat-value"><?php echo number_format($total_members); ?>+</p>
                 </div>
-                <div>
-                    <div class="stat-val">$<?php echo number_format($total_paid + 125000); ?></div>
-                    <div class="stat-label">Total Payouts</div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <p class="stat-label">Approved Withdrawals</p>
+                    <p class="stat-value">$<?php echo number_format($total_paid, 2); ?></p>
                 </div>
-                <div>
-                    <div class="stat-val">1.0%</div>
-                    <div class="stat-label">Daily Interest</div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <p class="stat-label">Daily Profit</p>
+                    <p class="stat-value">1.0% Fixed</p>
                 </div>
-                <div>
-                    <div class="stat-val">24/7</div>
-                    <div class="stat-label">Expert Support</div>
+            </div>
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="stat-card">
+                    <p class="stat-label">Referral Depth</p>
+                    <p class="stat-value">5 Levels</p>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="pricing">
-        <div class="container">
-            <h2>Investment Plans</h2>
-            <p>Simple and transparent options for every investor level.</p>
-            <div class="pricing-grid">
-                <div class="plan-card">
-                    <h3>Starter Plan</h3>
-                    <div class="price">1.0% <span>/ day</span></div>
-                    <ul style="list-style:none; padding:0; color:#64748b;">
-                        <li>✔ Min: $100 - Max: $999</li>
-                        <li>✔ 5-Level Referral Bonus</li>
-                        <li>✔ 24/7 Support</li>
-                        <li>✔ Daily Profit Accrual</li>
+<section class="section">
+    <div class="container text-center">
+        <h2 class="section-title">How The Platform Works</h2>
+        <p class="section-subtitle">Simple onboarding, transparent earning model, and clear admin moderation. Designed for real users on both desktop and mobile.</p>
+        <div class="row g-3 text-start">
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="glass-panel">
+                    <div class="icon-badge">1</div>
+                    <h5>Create Account</h5>
+                    <p class="mb-0 text-secondary">Register using email OTP verification and secure password rules.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="glass-panel">
+                    <div class="icon-badge">2</div>
+                    <h5>Activate Balance</h5>
+                    <p class="mb-0 text-secondary">Admin can fund user balance, and users can begin activity.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="glass-panel">
+                    <div class="icon-badge">3</div>
+                    <h5>Earn Daily Profit</h5>
+                    <p class="mb-0 text-secondary">Daily cron adds fixed 1% according to platform profit rules.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
+                <div class="glass-panel">
+                    <div class="icon-badge">4</div>
+                    <h5>Grow Team</h5>
+                    <p class="mb-0 text-secondary">Referral tree pays commissions from L1 to L5 levels.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section pt-0">
+    <div class="container">
+        <div class="row g-3">
+            <div class="col-12 col-lg-6">
+                <div class="glass-panel plan">
+                    <h4>Starter Plan</h4>
+                    <div class="rate">1.0% / Day</div>
+                    <ul>
+                        <li>Daily fixed growth model</li>
+                        <li>Referral commissions enabled</li>
+                        <li>User dashboard + support tools</li>
                     </ul>
-                    <a href="register.php" class="btn btn-primary btn-full">Choose Starter</a>
+                    <a href="register.php" class="btn btn-primary">Choose Starter</a>
                 </div>
-                <div class="plan-card popular">
-                    <div class="badge">MOST POPULAR</div>
-                    <h3>Pro Networker</h3>
-                    <div class="price">1.5% <span>/ day</span></div>
-                    <ul style="list-style:none; padding:0; color:#64748b;">
-                        <li>✔ Min: $1,000 - Max: $10,000</li>
-                        <li>✔ Priority Withdrawals</li>
-                        <li>✔ Dedicated Account Manager</li>
-                        <li>✔ Higher Referral Comms</li>
+            </div>
+            <div class="col-12 col-lg-6">
+                <div class="glass-panel plan">
+                    <h4>Network Builder</h4>
+                    <div class="rate">L1 5% to L5 1%</div>
+                    <ul>
+                        <li>L1 5%, L2 4%, L3 3%</li>
+                        <li>L4 2%, L5 1% commissions</li>
+                        <li>Live referral and wallet tracking</li>
                     </ul>
-                    <a href="register.php" class="btn btn-primary btn-full">Choose Pro</a>
+                    <a href="register.php" class="btn btn-outline-primary">Build Team</a>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="steps">
-        <div class="container">
-            <h2>Start Earning in 3 Steps</h2>
-            <div class="steps-grid">
-                <div>
-                    <div class="step-num">1</div>
-                    <h4>Register</h4>
-                    <p style="color:#64748b;">Sign up in 60 seconds and join our global network.</p>
+<section class="section pt-0">
+    <div class="container">
+        <div class="cta-band">
+            <div class="row align-items-center g-3">
+                <div class="col-12 col-lg-8">
+                    <h3 class="mb-2">Ready to launch your referral growth network?</h3>
+                    <p>Join the platform, verify account quickly, and start using a complete member + admin ecosystem.</p>
                 </div>
-                <div>
-                    <div class="step-num">2</div>
-                    <h4>Invest</h4>
-                    <p style="color:#64748b;">Deposit funds to activate your daily profit engine.</p>
-                </div>
-                <div>
-                    <div class="step-num">3</div>
-                    <h4>Multiply</h4>
-                    <p style="color:#64748b;">Earn daily interest and bonuses from your 5-level team.</p>
+                <div class="col-12 col-lg-4 text-lg-end">
+                    <a href="register.php" class="btn btn-light fw-bold me-2">Create Account</a>
+                    <a href="login.php" class="btn btn-outline-light fw-bold">Login</a>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="container">
-        <div class="features">
-            <div class="feature-card">
-                <h3>📈 Daily Growth</h3>
-                <p>Your investment grows every 24 hours with our automated profit engine.</p>
-            </div>
-            <div class="feature-card">
-                <h3>🔗 5-Level Referrals</h3>
-                <p>Earn massive commissions by building your team across 5 depth levels.</p>
-            </div>
-            <div class="feature-card">
-                <h3>🔒 Secure Platform</h3>
-                <p>Your data and funds are protected with industry-leading encryption.</p>
-            </div>
-        </div>
-    </section>
-
-    <section class="trust">
-        <div class="container">
-            <h2>Why Members Trust Network Platform</h2>
-            <p style="color:#64748b; max-width:700px; margin:0 auto;">Built for transparent tracking, smooth withdrawals, and long-term referral growth.</p>
-            <div class="trust-grid">
-                <div class="trust-card">
-                    <h3>Transparent Wallet Tracking</h3>
-                    <p style="margin:0; color:#64748b;">Members can track balance, daily profit, and withdrawals from one dashboard.</p>
-                </div>
-                <div class="trust-card">
-                    <h3>Structured Referral Program</h3>
-                    <p style="margin:0; color:#64748b;">5-level referral commissions help you scale from direct invites to deeper team growth.</p>
-                </div>
-                <div class="trust-card">
-                    <h3>Fast Admin Operations</h3>
-                    <p style="margin:0; color:#64748b;">Admin tools simplify user management, investment approvals, and withdrawal review.</p>
+<section class="section pt-0">
+    <div class="container text-center">
+        <h2 class="section-title">Professional Platform Highlights</h2>
+        <p class="section-subtitle">A modern investment and referral ecosystem with clear dashboards, transparent records, and fast operations.</p>
+        <div class="row g-3 text-start">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1553729459-efe14ef6055d?auto=format&fit=crop&w=1200&q=80" alt="Financial planning workspace">
+                    <h5>Transparent Financial Tracking</h5>
+                    <p class="mb-0 text-secondary">Users and admins can review balances, payouts, and referral growth through structured data views.</p>
                 </div>
             </div>
-            <div class="theme-banner" style="margin-top:24px;">
-                <div class="theme-banner-text">
-                    <h3>Referral Commission Snapshot</h3>
-                    <p>L1: 5% | L2: 4% | L3: 3% | L4: 2% | L5: 1%. Your team growth directly improves your commission potential.</p>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80" alt="Analytics dashboard display">
+                    <h5>Analytics-Friendly Dashboard</h5>
+                    <p class="mb-0 text-secondary">Designed for quick decision-making with concise metrics, card-based summaries, and responsive layouts.</p>
                 </div>
-                <div class="theme-banner-image">
-                    <img src="assets/network-team.svg" alt="Referral network illustration">
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="glass-panel media-card">
+                    <img src="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80" alt="Business collaboration meeting">
+                    <h5>Referral Network Expansion</h5>
+                    <p class="mb-0 text-secondary">Structured level commissions support long-term team growth and measurable network performance.</p>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <section class="insights">
-        <div class="container">
-            <h2>Platform Highlights</h2>
-            <p style="color:#64748b; max-width:760px; margin:0 auto;">Data-driven member growth, structured referrals, and transparent operational flow across both member and admin dashboards.</p>
-            <div class="insights-grid">
-                <article class="insight-card">
-                    <img src="assets/invest-growth.svg" alt="Daily investment growth">
-                    <h3>Predictable Daily Profit Flow</h3>
-                    <p>Members can monitor balance growth daily and track withdrawal readiness directly from the user dashboard.</p>
-                </article>
-                <article class="insight-card">
-                    <img src="assets/network-team.svg" alt="Referral team network">
-                    <h3>5-Level Team Expansion</h3>
-                    <p>Referral depth unlocks additional commission layers, helping users scale from direct invites to long-term network earnings.</p>
-                </article>
+
+
+<footer class="site-footer py-5">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-12 col-md-4">
+                <h5 class="fw-bold mb-2">Network Platform</h5>
+                <p class="mb-0 text-secondary">A responsive referral and profit platform with clear dashboards and operational controls.</p>
             </div>
-        </div>
-    </section>
-
-    <section class="timeline">
-        <div class="container">
-            <h2>Earning Timeline</h2>
-            <p style="color:#64748b; max-width:760px; margin:0 auto;">A simple progression model designed for clarity and consistent activity.</p>
-            <div class="timeline-wrap">
-                <div class="timeline-item">
-                    <div class="timeline-step">Day 1</div>
-                    <div>
-                        <h4>Account Activation</h4>
-                        <p>Complete registration and fund your plan to start the earning cycle.</p>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-step">Day 2+</div>
-                    <div>
-                        <h4>Daily Profit Accrual</h4>
-                        <p>Profit is applied on invested balance while your dashboard tracks each change.</p>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-step">Growth Phase</div>
-                    <div>
-                        <h4>Referral Commission Scaling</h4>
-                        <p>Invite members and build team levels to unlock L1 to L5 commission opportunities.</p>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-step">Withdrawal</div>
-                    <div>
-                        <h4>Payout and Reinvest</h4>
-                        <p>Submit withdrawal requests after threshold and continue compounding with smart reinvestment.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <footer class="site-footer">
-        <div class="site-footer-inner">
-            <div class="site-footer-grid">
-                <div>
-                    <h3 class="site-footer-title">NETWORK PLATFORM</h3>
-                    <p class="site-footer-text">Daily profit tracking, structured referral rewards, and clear dashboard control for members and admins.</p>
-                </div>
-                <div class="site-footer-links">
+            <div class="col-6 col-md-4">
+                <h6 class="text-light">Pages</h6>
+                <div class="d-grid gap-1">
                     <a href="about.php">About</a>
                     <a href="news.php">News & Events</a>
-                    <a href="contact.php">Contact Details</a>
-                    <a href="register.php">Create Account</a>
-                </div>
-                <div class="site-footer-metrics">
-                    <div>Active Members: <?php echo number_format((int)$total_members); ?></div>
-                    <div>Total Approved Withdrawals: $<?php echo number_format((float)$total_paid, 2); ?></div>
-                    <div>Daily Profit Model: 1.0% Fixed</div>
+                    <a href="contact.php">Contact</a>
                 </div>
             </div>
-            <div class="site-footer-copy">&copy; <?php echo date('Y'); ?> Network Platform. Investment involves risk. Please invest responsibly.</div>
+            <div class="col-6 col-md-4">
+                <h6 class="text-light">Access</h6>
+                <div class="d-grid gap-1">
+                    <a href="register.php">Join Now</a>
+                    <a href="login.php">Member Login</a>
+                    <a href="admin_dashboard.php">Admin Dashboard</a>
+                </div>
+            </div>
         </div>
-    </footer>
+        <hr class="border-secondary my-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+            <small class="text-secondary">&copy; <?php echo date('Y'); ?> Network Platform. All rights reserved.</small>
+            <small class="text-secondary">Designed for desktop, tablet, and mobile responsive usage.</small>
+        </div>
+    </div>
+</footer>
+</main>
 
-    <script>
-        (function () {
-            var toggles = document.querySelectorAll('.mobile-nav-toggle');
-            toggles.forEach(function (btn) {
-                var header = btn.closest('.landing-header, .main-header, .header');
-                if (!header) return;
-                btn.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    var isOpen = header.classList.toggle('nav-open');
-                    btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-                });
-                header.querySelectorAll('a').forEach(function (link) {
-                    link.addEventListener('click', function () {
-                        header.classList.remove('nav-open');
-                        btn.setAttribute('aria-expanded', 'false');
-                    });
-                });
-            });
-            document.addEventListener('click', function (e) {
-                toggles.forEach(function (btn) {
-                    var header = btn.closest('.landing-header, .main-header, .header');
-                    if (!header || header.contains(e.target)) return;
-                    header.classList.remove('nav-open');
-                    btn.setAttribute('aria-expanded', 'false');
-                });
-            });
-            window.addEventListener('resize', function () {
-                if (window.innerWidth > 768) {
-                    toggles.forEach(function (btn) {
-                        var header = btn.closest('.landing-header, .main-header, .header');
-                        if (!header) return;
-                        header.classList.remove('nav-open');
-                        btn.setAttribute('aria-expanded', 'false');
-                    });
-                }
-            });
-        })();
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="scroll_top.js"></script>
 </body>
 </html>
+
+

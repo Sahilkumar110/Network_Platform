@@ -16,6 +16,8 @@ svg {
 html,
 body {
     overflow-x: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 table {
@@ -36,7 +38,22 @@ table {
 
 /* Prevent content from hiding under fixed navbar */
 .landing-page {
-    padding-top: 82px;
+    padding-top: 0 !important;
+}
+
+/* New public pages use .topbar; keep it fixed and remove any top gap. */
+.landing-page .topbar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    z-index: 2100 !important;
+}
+
+.landing-page {
+    padding-top: 78px !important;
 }
 
 .user-dashboard,
@@ -247,7 +264,7 @@ table {
 
 @media (max-width: 768px) {
     .landing-page {
-        padding-top: 118px;
+        padding-top: 72px !important;
     }
 
     .user-dashboard,
@@ -595,5 +612,291 @@ table {
     }
     .admin-dashboard .ua-adjust-form {
         grid-template-columns: 1fr !important;
+    }
+}
+
+/* ===== Professional landing theme overrides ===== */
+body.landing-page {
+    background: radial-gradient(1200px 600px at 10% -10%, #dbeafe 0%, transparent 55%),
+                radial-gradient(1200px 600px at 90% -20%, #bfdbfe 0%, transparent 55%),
+                #f5f7fb;
+    color: #0f172a;
+}
+
+.landing-page .landing-header {
+    position: sticky !important;
+    top: 0;
+    z-index: 1300;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.9) !important;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+}
+
+.landing-page .brand {
+    font-size: clamp(22px, 2vw, 28px) !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.04em;
+}
+
+.landing-page .header-actions {
+    gap: 10px !important;
+}
+
+.landing-page .header-link,
+.landing-page .header-login {
+    background: #ffffff !important;
+    border: 1px solid #dbe2ee !important;
+    color: #0f172a !important;
+    font-size: 13px;
+    padding: 9px 14px !important;
+    border-radius: 12px !important;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.landing-page .header-link:hover,
+.landing-page .header-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    background: #f8fafc !important;
+}
+
+.landing-page .header-actions .btn.btn-primary {
+    border-radius: 12px !important;
+    border: 1px solid #1d4ed8 !important;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+}
+
+.landing-page .hero {
+    position: relative;
+    isolation: isolate;
+    padding: clamp(76px, 10vw, 120px) 20px !important;
+    overflow: hidden;
+    background:
+        linear-gradient(115deg, rgba(15, 23, 42, 0.9), rgba(30, 58, 138, 0.82)),
+        url('https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1800&q=80') center/cover no-repeat !important;
+}
+
+.landing-page .hero::after {
+    content: "";
+    position: absolute;
+    inset: auto -15% -180px -15%;
+    height: 260px;
+    background: radial-gradient(closest-side, rgba(59, 130, 246, 0.35), rgba(59, 130, 246, 0));
+    z-index: -1;
+}
+
+.landing-page .hero h1 {
+    max-width: 980px;
+    margin: 0 auto 14px;
+    font-size: clamp(34px, 5vw, 62px) !important;
+    line-height: 1.04;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+}
+
+.landing-page .hero p {
+    max-width: 760px;
+    margin: 0 auto 30px !important;
+    font-size: clamp(15px, 2vw, 19px) !important;
+    color: #e2e8f0 !important;
+    text-wrap: pretty;
+}
+
+.landing-page .cta-buttons {
+    gap: 12px !important;
+    flex-wrap: wrap;
+}
+
+.landing-page .btn {
+    border-radius: 14px !important;
+    padding: 13px 24px !important;
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+
+.landing-page .btn.btn-secondary {
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.landing-page .hero img {
+    margin-top: 32px !important;
+    border-radius: 18px !important;
+    box-shadow: 0 30px 60px rgba(2, 6, 23, 0.28);
+}
+
+.landing-page .stats-bar {
+    background: linear-gradient(180deg, #0f172a, #111827) !important;
+    border-bottom: none !important;
+}
+
+.landing-page .stat-val {
+    color: #60a5fa !important;
+}
+
+.landing-page .pricing,
+.landing-page .insights {
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9) !important;
+}
+
+.landing-page .pricing-grid,
+.landing-page .steps-grid,
+.landing-page .trust-grid,
+.landing-page .insights-grid {
+    gap: 18px !important;
+}
+
+.landing-page .plan-card,
+.landing-page .feature-card,
+.landing-page .trust-card,
+.landing-page .insight-card,
+.landing-page .timeline-item {
+    border-radius: 18px !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.05);
+}
+
+.landing-page .plan-card:hover,
+.landing-page .insight-card:hover,
+.landing-page .trust-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 34px rgba(15, 23, 42, 0.1);
+}
+
+.landing-page .insight-card img {
+    height: 210px !important;
+    border-radius: 14px !important;
+    border: 1px solid #dbeafe !important;
+}
+
+.landing-page .theme-banner {
+    border-radius: 18px !important;
+    background: linear-gradient(145deg, #ffffff, #f8fafc) !important;
+    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+.landing-page .timeline-item {
+    background: linear-gradient(180deg, #ffffff, #f8fafc) !important;
+}
+
+.landing-page .timeline-step {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb) !important;
+    font-size: 11px !important;
+}
+
+.landing-page .site-footer {
+    margin-top: 42px;
+    border-top: 1px solid #334155;
+}
+
+/* User dashboard polish */
+.user-dashboard {
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.user-dashboard .main-header {
+    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.94) !important;
+    border-bottom: 1px solid #e2e8f0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.user-dashboard .card {
+    border-radius: 16px !important;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.user-dashboard .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 30px rgba(15, 23, 42, 0.11);
+}
+
+/* Admin dashboard polish */
+.admin-dashboard {
+    background: radial-gradient(900px 360px at 15% -5%, rgba(59, 130, 246, 0.14), transparent 60%),
+                radial-gradient(900px 360px at 85% -5%, rgba(30, 64, 175, 0.12), transparent 60%),
+                #0f172a !important;
+}
+
+.admin-dashboard .main-header {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid #dbe2ee;
+    box-shadow: 0 10px 26px rgba(2, 6, 23, 0.22);
+}
+
+.admin-dashboard .stats-grid .stat-card {
+    border-radius: 16px;
+    box-shadow: 0 14px 26px rgba(2, 6, 23, 0.22);
+}
+
+.admin-dashboard table {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.admin-dashboard .pager-btn {
+    border-radius: 10px;
+}
+
+@media (max-width: 900px) {
+    .landing-page .hero {
+        background-position: 60% center !important;
+    }
+    .landing-page .hero img {
+        margin-top: 22px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .landing-page {
+        padding-top: 72px !important;
+    }
+
+    .landing-page .landing-header {
+        padding: 12px !important;
+        border-radius: 0;
+    }
+
+    .landing-page .brand {
+        font-size: 21px !important;
+    }
+
+    .landing-page .header-actions {
+        background: #ffffff !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 14px !important;
+        box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16) !important;
+        padding: 12px !important;
+    }
+
+    .landing-page .hero h1 {
+        font-size: clamp(30px, 8vw, 42px) !important;
+    }
+
+    .landing-page .hero p {
+        font-size: 15px !important;
+    }
+
+    .landing-page .section,
+    .landing-page .pricing,
+    .landing-page .steps,
+    .landing-page .trust,
+    .landing-page .insights,
+    .landing-page .timeline {
+        padding: 48px 0 !important;
+    }
+
+    .landing-page .insight-card img {
+        height: 180px !important;
+    }
+
+    .user-dashboard,
+    .admin-dashboard,
+    .admin-withdrawals {
+        padding-top: 122px !important;
     }
 }

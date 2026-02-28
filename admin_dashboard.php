@@ -131,6 +131,18 @@ $users_page = min($users_page, $users_pages);
 $users_display = array_slice($users, ($users_page - 1) * $dashboard_limit, $dashboard_limit);
 
 if (!function_exists('renderAdminPager')) {
+    function adminPagerAnchor(string $param): string {
+        $anchors = [
+            'users_page' => 'users-list',
+            'crypto_page' => 'pending-crypto',
+            'kyc_page' => 'pending-kyc',
+            'investments_page' => 'pending-investments',
+            'withdrawals_page' => 'pending-withdrawals',
+            'logs_page' => 'recent-logs',
+        ];
+        return $anchors[$param] ?? '';
+    }
+
     function renderAdminPager(string $param, int $currentPage, int $totalPages): string {
         if ($totalPages <= 1) {
             return '';
@@ -139,21 +151,23 @@ if (!function_exists('renderAdminPager')) {
         $start = max(1, $currentPage - 2);
         $end = min($totalPages, $currentPage + 2);
         $html = '<div class="section-footer"><div class="pager-nav">';
+        $anchor = adminPagerAnchor($param);
+        $hash = $anchor !== '' ? ('#' . $anchor) : '';
 
         if ($currentPage > 1) {
             $prevLink = htmlspecialchars(adminDashboardLink([$param => $currentPage - 1]));
-            $html .= '<a class="pager-btn" href="' . $prevLink . '">Prev</a>';
+            $html .= '<a class="pager-btn" href="' . $prevLink . $hash . '">Prev</a>';
         }
 
         for ($i = $start; $i <= $end; $i++) {
             $pageLink = htmlspecialchars(adminDashboardLink([$param => $i]));
             $activeClass = ($i === $currentPage) ? ' pager-btn-active' : '';
-            $html .= '<a class="pager-btn' . $activeClass . '" href="' . $pageLink . '">' . $i . '</a>';
+            $html .= '<a class="pager-btn' . $activeClass . '" href="' . $pageLink . $hash . '">' . $i . '</a>';
         }
 
         if ($currentPage < $totalPages) {
             $nextLink = htmlspecialchars(adminDashboardLink([$param => $currentPage + 1]));
-            $html .= '<a class="pager-btn" href="' . $nextLink . '">Next</a>';
+            $html .= '<a class="pager-btn" href="' . $nextLink . $hash . '">Next</a>';
         }
 
         $html .= '</div></div>';
@@ -837,7 +851,7 @@ if (!function_exists('renderAdminPager')) {
     </div>
 </div>
 
-    <div class="section-head"><h3>User List</h3></div>
+    <div class="section-head" id="users-list"><h3>User List</h3></div>
     <table class="user-table">
         <tr>
             <th>ID</th>
@@ -1053,7 +1067,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
 ?>
 
 <div style="margin-top: 50px;">
-    <div class="section-head"><h3>Pending Crypto Address Verifications</h3></div>
+    <div class="section-head" id="pending-crypto"><h3>Pending Crypto Address Verifications</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -1089,7 +1103,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     </table>
     <?php echo renderAdminPager('crypto_page', $crypto_page, $pending_crypto_pages); ?>
 
-    <div class="section-head"><h3>Pending KYC Verifications</h3></div>
+    <div class="section-head" id="pending-kyc"><h3>Pending KYC Verifications</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -1126,7 +1140,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     </table>
     <?php echo renderAdminPager('kyc_page', $kyc_page, $pending_kyc_pages); ?>
 
-    <div class="section-head"><h3>Pending Investment Requests</h3></div>
+    <div class="section-head" id="pending-investments"><h3>Pending Investment Requests</h3></div>
     <form action="admin_dashboard.php" method="GET" class="investment-queue-search">
         <input type="text" name="investment_search" value="<?php echo htmlspecialchars($investment_search); ?>" placeholder="Search user, email, user code, tx hash, network, or user ID">
         <input type="hidden" name="investments_page" value="1">
@@ -1175,7 +1189,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     </table>
     <?php echo renderAdminPager('investments_page', $investments_page, $pending_investments_pages); ?>
 
-    <div class="section-head"><h3>Pending Withdrawal Requests</h3></div>
+    <div class="section-head" id="pending-withdrawals"><h3>Pending Withdrawal Requests</h3></div>
     <table class="log-table">
         <thead>
             <tr>
@@ -1213,7 +1227,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
     </table>
     <?php echo renderAdminPager('withdrawals_page', $withdrawals_page, $pending_withdrawals_pages); ?>
 
-    <div class="section-head"><h3>Recent Activity Log</h3></div>
+    <div class="section-head" id="recent-logs"><h3>Recent Activity Log</h3></div>
     <table class="log-table">
         <thead>
             <tr>
