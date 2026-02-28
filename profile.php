@@ -271,6 +271,9 @@ $is_admin = (($user['role'] ?? 'user') === 'admin');
                 <span class="avatar-overlay">UPLOAD PHOTO</span>
             </label>
             <input id="avatarImageInput" class="avatar-file-input" type="file" name="avatar_image" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
+
+
+            
         </form>
     </section>
 
