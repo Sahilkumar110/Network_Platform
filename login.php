@@ -159,7 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-family: 'Inter', system-ui, sans-serif; 
             background: #f3f4f6; 
             display: flex; justify-content: center; align-items: center; 
-            height: 100vh; margin: 0; 
+            min-height: 100vh; margin: 0;
+            padding: 20px 12px;
+            overflow-y: auto;
         }
 
         .login-card { 
@@ -261,6 +263,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             color: var(--secondary);
             text-decoration: none;
             font-weight: 600;
+        }
+        @media (max-width: 768px) {
+            body {
+                align-items: flex-start;
+                padding: 14px 10px 24px;
+            }
+            .login-card {
+                max-width: 100%;
+                padding: 24px 16px;
+                border-radius: 18px;
+            }
+            .logo {
+                display: block;
+                text-align: center;
+                font-size: 22px;
+                margin-bottom: 8px;
+            }
+            .subtitle {
+                margin-bottom: 18px;
+            }
         }
     </style>
     <link rel="stylesheet" href="responsive.css">
