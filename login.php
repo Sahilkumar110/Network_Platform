@@ -11,6 +11,7 @@ $lockout_max_attempts = 5;
 $lockout_window_minutes = 15;
 $lockout_minutes = 15;
 $google_client_id = trim((string)envValue('GOOGLE_CLIENT_ID', ''));
+$google_enabled = ($google_client_id !== '');
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -250,6 +251,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             justify-content: center;
             margin-top: 10px;
         }
+        .google-hint {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+        }
+        .google-disabled {
+            width: 100%;
+            border: 1px dashed #cbd5e1;
+            background: #f8fafc;
+            color: #475569;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+        }
         .forgot-link {
             display: block;
             text-align: right;
@@ -309,8 +327,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         <button type="submit" class="submit-btn">Sign In to Dashboard</button>
     </form>
-    <?php if ($google_client_id !== ''): ?>
     <div class="auth-divider">OR</div>
+    <?php if ($google_enabled): ?>
     <form method="POST" id="googleLoginForm">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
         <input type="hidden" name="action" value="google_login">
@@ -318,6 +336,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <input type="hidden" name="google_id_token" id="googleIdTokenField" value="">
         <div class="google-login-wrap" id="googleButton"></div>
     </form>
+    <div class="google-hint">Google login is available for Member Login only.</div>
+    <?php else: ?>
+    <div class="google-disabled">Google login is currently unavailable.</div>
+    <div class="google-hint">Admin must set <code>GOOGLE_CLIENT_ID</code> to enable it.</div>
     <?php endif; ?>
 
     <div class="footer-text">
@@ -325,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 </div>
 
-<?php if ($google_client_id !== ''): ?>
+<?php if ($google_enabled): ?>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <?php endif; ?>
 <script>
@@ -366,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         syncMode();
     })();
 </script>
-<?php if ($google_client_id !== ''): ?>
+<?php if ($google_enabled): ?>
 <script>
     function handleGoogleCredentialResponse(response) {
         if (!response || !response.credential) {
