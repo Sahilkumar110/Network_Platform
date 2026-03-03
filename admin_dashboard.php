@@ -191,6 +191,28 @@ if (!function_exists('renderAdminPager')) {
         th, td { padding: 12px; border-bottom: 1px solid #4a5568; text-align: left; }
         th { background: #4a5568; }
         .status-admin { color: #48bb78; font-weight: bold; }
+        .page-hero {
+            max-width: 1200px;
+            margin: 16px auto 14px;
+            padding: 16px 20px;
+            border-radius: 14px;
+            border: 1px solid #334155;
+            background: linear-gradient(140deg, #111827 0%, #1f2937 100%);
+        }
+        .page-title {
+            margin: 0;
+            font-size: clamp(24px, 3vw, 34px);
+            line-height: 1.15;
+            color: #f8fafc;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+        .page-subtitle {
+            margin: 6px 0 0;
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.4;
+        }
         /* Navigation Styling */
 .main-header {
     background: #ffffff;
@@ -716,6 +738,13 @@ if (!function_exists('renderAdminPager')) {
         gap: 12px;
         margin: 16px 0;
     }
+    .page-hero {
+        margin: 8px 0 12px;
+        padding: 14px;
+    }
+    .page-subtitle {
+        font-size: 13px;
+    }
     .stat-card {
         padding: 16px;
     }
@@ -743,7 +772,7 @@ if (!function_exists('renderAdminPager')) {
     }
 }
     </style>
-    <link rel="stylesheet" href="responsive.css">
+    <link rel="stylesheet" href="responsive.css?v=20260301">
 </head>
 <body class="admin-dashboard">
 <header class="main-header">
@@ -784,7 +813,10 @@ if (!function_exists('renderAdminPager')) {
     </div>
 </header>
 
-    <h1 class="page-title">Admin Control Panel</h1>
+    <section class="page-hero">
+        <h1 class="page-title">Welcome back, <?php echo htmlspecialchars((string)($admin_user['username'] ?? 'Admin')); ?>!</h1>
+        <p class="page-subtitle">Manage users, approvals, compliance, and platform operations from one control surface.</p>
+    </section>
     <?php if (isset($_GET['success'])): ?>
     <div class="alert alert-success"><?php echo htmlspecialchars($_GET['success']); ?></div>
 <?php endif; ?>
@@ -1289,6 +1321,17 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
 </style>
 <script>
     (function () {
+        function syncHeaderOffset() {
+            var header = document.querySelector('.main-header');
+            if (!header) return;
+            var extra = window.innerWidth <= 768 ? 18 : 16;
+            var offset = header.offsetHeight + extra;
+            document.body.style.setProperty('padding-top', offset + 'px', 'important');
+        }
+
+        syncHeaderOffset();
+        window.addEventListener('resize', syncHeaderOffset);
+
         var toggles = document.querySelectorAll('.mobile-nav-toggle');
         toggles.forEach(function (btn) {
             var header = btn.closest('.landing-header, .main-header, .header');
@@ -1302,11 +1345,13 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                     var searchBtn = header.querySelector('.mobile-search-toggle');
                     if (searchBtn) searchBtn.setAttribute('aria-expanded', 'false');
                 }
+                setTimeout(syncHeaderOffset, 0);
             });
             header.querySelectorAll('a').forEach(function (link) {
                 link.addEventListener('click', function () {
                     header.classList.remove('nav-open');
                     btn.setAttribute('aria-expanded', 'false');
+                    setTimeout(syncHeaderOffset, 0);
                 });
             });
         });
@@ -1316,6 +1361,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                 if (!header || header.contains(e.target)) return;
                 header.classList.remove('nav-open');
                 btn.setAttribute('aria-expanded', 'false');
+                setTimeout(syncHeaderOffset, 0);
             });
         });
 
@@ -1334,6 +1380,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                     var searchInput = header.querySelector('.search-form input[name=\"search\"]');
                     if (searchInput) searchInput.focus();
                 }
+                setTimeout(syncHeaderOffset, 0);
             });
         });
 
@@ -1343,6 +1390,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                 if (!header || header.contains(e.target)) return;
                 header.classList.remove('search-open');
                 btn.setAttribute('aria-expanded', 'false');
+                setTimeout(syncHeaderOffset, 0);
             });
         });
 
@@ -1352,6 +1400,7 @@ $logs_display = array_slice($logs, ($logs_page - 1) * $dashboard_limit, $dashboa
                     menu.removeAttribute('open');
                 }
             });
+            setTimeout(syncHeaderOffset, 0);
         });
     })();
 </script>
