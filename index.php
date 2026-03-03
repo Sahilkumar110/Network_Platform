@@ -89,7 +89,7 @@ try {
                 url("https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1800&q=80") center/cover no-repeat;
         }
         .public-main {
-            padding-top: 76px;
+            padding-top: 0;
         }
         .media-card img {
             width: 100%;
@@ -259,7 +259,7 @@ try {
             color: #ffffff;
         }
         @media (max-width: 991.98px) {
-            .public-main { padding-top: 70px; }
+            .public-main { padding-top: 0; }
             .hero {
                 min-height: 76vh;
                 background-position: 58% center;
