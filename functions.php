@@ -394,6 +394,38 @@ function ensureKycProfilesTable($pdo) {
     );
 }
 
+function ensureUserNotificationsTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS user_notifications (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            event_type VARCHAR(60) DEFAULT NULL,
+            title VARCHAR(120) NOT NULL,
+            message VARCHAR(255) NOT NULL,
+            is_read TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_created (user_id, created_at),
+            INDEX idx_user_read (user_id, is_read)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
+function ensureKycReviewHistoryTable($pdo) {
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS kyc_review_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            kyc_id BIGINT NOT NULL,
+            user_id INT NOT NULL,
+            reviewed_by INT DEFAULT NULL,
+            status ENUM('verified','rejected') NOT NULL,
+            note VARCHAR(255) DEFAULT NULL,
+            reviewed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_reviewed (user_id, reviewed_at),
+            INDEX idx_kyc_reviewed (kyc_id, reviewed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+}
+
 function ensureComplianceEventsTable($pdo) {
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS compliance_events (
@@ -524,6 +556,20 @@ function queueNotification($pdo, $channel, $event_type, $subject, $message, $use
         $subject,
         $message,
         $payload ? json_encode($payload) : null
+    ]);
+}
+
+function createUserNotification($pdo, $user_id, $title, $message, $event_type = null) {
+    ensureUserNotificationsTable($pdo);
+    $stmt = $pdo->prepare(
+        "INSERT INTO user_notifications (user_id, event_type, title, message, is_read, created_at)
+         VALUES (?, ?, ?, ?, 0, NOW())"
+    );
+    $stmt->execute([
+        (int)$user_id,
+        $event_type,
+        (string)$title,
+        (string)$message
     ]);
 }
 

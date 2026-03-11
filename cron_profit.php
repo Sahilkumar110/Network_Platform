@@ -80,6 +80,21 @@ try {
                 null
             );
             $profit_log->execute([$user['id'], $profit, $daily_description]);
+            queueUserNotification(
+                $pdo,
+                (int)$user['id'],
+                'daily_profit',
+                'Daily Profit Credited',
+                'Daily profit of $' . number_format($profit, 2) . ' has been credited to your wallet on ' . $today . '.',
+                ['amount' => $profit, 'date' => $today]
+            );
+            createUserNotification(
+                $pdo,
+                (int)$user['id'],
+                'Daily Profit Credited',
+                'Daily profit of $' . number_format($profit, 2) . ' has been credited to your wallet.',
+                'daily_profit'
+            );
 
             $processed++;
             $total_profit += $profit;

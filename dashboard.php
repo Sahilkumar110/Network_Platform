@@ -15,6 +15,17 @@ $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$user_id]);
 $user = $stmt->fetch();
 $avatar_initial = strtoupper(substr((string)($user['username'] ?? 'U'), 0, 1));
+ensureUserNotificationsTable($pdo);
+
+$notifStmt = $pdo->prepare(
+    "SELECT title, message, created_at, is_read
+     FROM user_notifications
+     WHERE user_id = ?
+     ORDER BY created_at DESC
+     LIMIT 5"
+);
+$notifStmt->execute([(int)$user_id]);
+$notifications = $notifStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $stmt_ref = $pdo->prepare("SELECT username, investment_amount FROM users WHERE referrer_id = ?");
 $stmt_ref->execute([$user_id]);
@@ -212,6 +223,17 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
         }
 
         .ref-item:last-child { border: none; }
+        .notif-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+        .notif-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            font-size: 13px;
+            color: var(--text-dark);
+        }
+        .notif-item strong { display: block; font-size: 13px; color: var(--text-dark); }
+        .notif-time { font-size: 11px; color: var(--text-light); margin-top: 4px; }
 
         /* Updated Withdrawal Card Styles */
 .withdraw-status-container {
@@ -441,6 +463,7 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                         <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                             <a class="profile-link" href="admin_dashboard.php">Admin Dashboard</a>
                         <?php endif; ?>
+                        <a class="profile-link" href="daily_profit_history.php">Daily Profit History</a>
                         <a class="profile-link" href="crypto_profile.php">Crypto Profile</a>
                         <a class="profile-link" href="kyc.php">KYC</a>
                         <a class="profile-link" href="withdraw.php">Withdraw</a>
@@ -557,6 +580,22 @@ $referral_link = $scheme . '://' . $host . $base_path . '/register.php?ref=' . r
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+        </div>
+        <div class="card">
+            <h3>Notifications</h3>
+            <?php if (empty($notifications)): ?>
+                <p style="color: var(--text-light); font-size: 13px; margin-top: 15px;">No notifications yet.</p>
+            <?php else: ?>
+                <ul class="notif-list">
+                    <?php foreach ($notifications as $note): ?>
+                        <li class="notif-item">
+                            <strong><?php echo htmlspecialchars((string)$note['title']); ?></strong>
+                            <div><?php echo htmlspecialchars((string)$note['message']); ?></div>
+                            <div class="notif-time"><?php echo htmlspecialchars(date('M d, Y H:i', strtotime((string)$note['created_at']))); ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         </div>
     </div>
 </div>

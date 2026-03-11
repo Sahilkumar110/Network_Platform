@@ -23,6 +23,12 @@ $last_cron_at = '-';
 $ledger_mismatch_users = 0;
 $ledger_mismatch_amount = 0.0;
 $last_reconcile_at = '-';
+$profit_last_at = '-';
+$profit_last_status = 'n/a';
+$profit_processed = 0;
+$profit_failed = 0;
+$profit_total = '-';
+$profit_status_class = '';
 
 $stmt_admin_user = $pdo->prepare("SELECT id, username, email, role, user_rank, wallet_balance, user_code FROM users WHERE id = ?");
 $stmt_admin_user->execute([$_SESSION['user_id']]);
@@ -67,6 +73,24 @@ try {
     $last_cron = $cronStmt->fetch();
     $last_cron_status = $last_cron['status'] ?? 'n/a';
     $last_cron_at = $last_cron['created_at'] ?? '-';
+
+    $profitStmt = $pdo->query("SELECT status, details, created_at FROM cron_runs WHERE job_name = 'cron_profit' ORDER BY created_at DESC LIMIT 1");
+    $profitRow = $profitStmt->fetch();
+    if ($profitRow) {
+        $profit_last_status = $profitRow['status'] ?? 'n/a';
+        $profit_last_at = $profitRow['created_at'] ?? '-';
+        $profit_status_class = strtolower((string)$profit_last_status) === 'success' ? 'stat-value-positive' : '';
+        $details = (string)($profitRow['details'] ?? '');
+        if (preg_match('/processed for (\d+) users/i', $details, $m)) {
+            $profit_processed = (int)$m[1];
+        }
+        if (preg_match('/Failed:\s*(\d+)/i', $details, $m)) {
+            $profit_failed = (int)$m[1];
+        }
+        if (preg_match('/Total credited:\s*\$?([0-9\.,]+)/i', $details, $m)) {
+            $profit_total = '$' . $m[1];
+        }
+    }
 
     $recStmt = $pdo->query("SELECT mismatched_users, total_mismatch_amount, created_at FROM ledger_reconciliation_reports ORDER BY id DESC LIMIT 1");
     $last_rec = $recStmt->fetch();
@@ -875,6 +899,16 @@ if (!function_exists('renderAdminPager')) {
         <span class="stat-label">Last Cron</span>
         <div class="stat-value"><?php echo htmlspecialchars(strtoupper((string)$last_cron_status)); ?></div>
         <span class="stat-sub"><?php echo htmlspecialchars((string)$last_cron_at); ?></span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Profit Run Status</span>
+        <div class="stat-value <?php echo htmlspecialchars($profit_status_class); ?>"><?php echo htmlspecialchars(strtoupper((string)$profit_last_status)); ?></div>
+        <span class="stat-sub">
+            Last: <?php echo htmlspecialchars((string)$profit_last_at); ?> •
+            Users: <?php echo number_format($profit_processed); ?> •
+            Failed: <?php echo number_format($profit_failed); ?> •
+            Total: <?php echo htmlspecialchars((string)$profit_total); ?>
+        </span>
     </div>
     <div class="stat-card">
         <span class="stat-label">Wallet Mismatch Alerts</span>

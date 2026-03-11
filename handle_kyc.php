@@ -17,6 +17,7 @@ if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
 }
 
 ensureKycProfilesTable($pdo);
+ensureKycReviewHistoryTable($pdo);
 ensureComplianceEventsTable($pdo);
 ensureNotificationQueueTable($pdo);
 
@@ -43,6 +44,18 @@ try {
     $status = $decision === 'approve' ? 'verified' : 'rejected';
     $upd = $pdo->prepare("UPDATE kyc_profiles SET status = ?, review_note = ?, reviewed_at = NOW() WHERE id = ?");
     $upd->execute([$status, $note ?: null, $kyc_id]);
+
+    $history = $pdo->prepare(
+        "INSERT INTO kyc_review_history (kyc_id, user_id, reviewed_by, status, note, reviewed_at)
+         VALUES (?, ?, ?, ?, ?, NOW())"
+    );
+    $history->execute([
+        $kyc_id,
+        (int)$row['user_id'],
+        (int)($_SESSION['user_id'] ?? 0),
+        $status,
+        $note ?: null
+    ]);
 
     logComplianceEvent(
         $pdo,

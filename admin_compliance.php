@@ -20,6 +20,21 @@ $search = trim((string)($_GET['search'] ?? ''));
 $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = 25;
 
+if (!function_exists('complianceLink')) {
+    function complianceLink(array $updates): string {
+        $params = $_GET;
+        foreach ($updates as $key => $value) {
+            if ($value === null || $value === '') {
+                unset($params[$key]);
+            } else {
+                $params[$key] = $value;
+            }
+        }
+        $query = http_build_query($params);
+        return 'admin_compliance.php' . ($query ? ('?' . $query) : '');
+    }
+}
+
 $where = " WHERE 1=1 ";
 $params = [];
 if (in_array($severity, ['info', 'medium', 'high'], true)) {
@@ -32,6 +47,96 @@ if ($search !== '') {
     $params[] = "%{$search}%";
     $params[] = "%{$search}%";
     $params[] = "%{$search}%";
+}
+
+$download = strtolower(trim((string)($_GET['download'] ?? '')));
+if (in_array($download, ['csv', 'pdf'], true)) {
+    $exportSql = "SELECT c.*, u.username, u.email, u.user_code
+        FROM compliance_events c
+        JOIN users u ON u.id=c.user_id
+        {$where}
+        ORDER BY c.id DESC";
+    $exportStmt = $pdo->prepare($exportSql);
+    $exportStmt->execute($params);
+    $exportRows = $exportStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($download === 'csv') {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=compliance_export.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Date', 'User Code', 'Username', 'Email', 'Event Type', 'Severity', 'Details']);
+        foreach ($exportRows as $row) {
+            fputcsv($out, [
+                $row['created_at'],
+                $row['user_code'],
+                $row['username'],
+                $row['email'],
+                $row['event_type'],
+                $row['severity'],
+                $row['details'],
+            ]);
+        }
+        fclose($out);
+        exit();
+    }
+
+    $escape = function ($text) {
+        $text = str_replace('\\', '\\\\', (string)$text);
+        $text = str_replace('(', '\\(', $text);
+        $text = str_replace(')', '\\)', $text);
+        return $text;
+    };
+
+    $lines = [];
+    $lines[] = 'Compliance Audit Export';
+    $lines[] = '';
+    foreach ($exportRows as $row) {
+        $lines[] = sprintf(
+            '%s | %s | %s | %s | %s',
+            $row['created_at'],
+            $row['user_code'] ?: ('#' . $row['user_id']),
+            $row['event_type'],
+            strtoupper((string)$row['severity']),
+            $row['details']
+        );
+    }
+
+    $content = "BT\n/F1 11 Tf\n40 760 Td\n";
+    $leading = 14;
+    foreach ($lines as $i => $line) {
+        if ($i > 0) {
+            $content .= "0 -" . $leading . " Td\n";
+        }
+        $content .= "(" . $escape($line) . ") Tj\n";
+    }
+    $content .= "ET\n";
+
+    $objects = [];
+    $objects[] = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    $objects[] = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+    $objects[] = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n";
+    $objects[] = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+    $objects[] = "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream\nendobj\n";
+
+    $pdf = "%PDF-1.4\n";
+    $offsets = [0];
+    foreach ($objects as $obj) {
+        $offsets[] = strlen($pdf);
+        $pdf .= $obj;
+    }
+    $xrefPos = strlen($pdf);
+    $pdf .= "xref\n0 " . count($offsets) . "\n";
+    $pdf .= "0000000000 65535 f \n";
+    for ($i = 1; $i < count($offsets); $i++) {
+        $pdf .= str_pad((string)$offsets[$i], 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+    }
+    $pdf .= "trailer\n<< /Size " . count($offsets) . " /Root 1 0 R >>\n";
+    $pdf .= "startxref\n" . $xrefPos . "\n%%EOF";
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename=compliance_export.pdf');
+    echo $pdf;
+    exit();
 }
 
 $countSql = "SELECT COUNT(*) FROM compliance_events c JOIN users u ON u.id=c.user_id {$where}";
@@ -210,6 +315,21 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             display: inline-block;
         }
         .pager a:hover { background: #172033; }
+        .pager-btn {
+            text-decoration: none;
+            color: #cbd5e1;
+            padding: 6px 11px;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 700;
+            background: #1e293b;
+        }
+        .pager-btn:hover {
+            background: #172033;
+            color: #fff;
+        }
         @media (max-width: 900px) {
             body { padding: 14px; }
             .main-header { height: auto; padding: 10px 12px; }
@@ -263,6 +383,10 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </select>
             <button type="submit">Filter</button>
         </form>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <a class="pager-btn" href="<?php echo htmlspecialchars(complianceLink(['download' => 'csv', 'page' => null])); ?>">Download CSV</a>
+            <a class="pager-btn" href="<?php echo htmlspecialchars(complianceLink(['download' => 'pdf', 'page' => null])); ?>">Download PDF</a>
+        </div>
     </div>
     <div class="table-wrap">
         <table>

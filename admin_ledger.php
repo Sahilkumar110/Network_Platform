@@ -49,6 +49,99 @@ if ($entry_type !== '') {
     $params[] = $entry_type;
 }
 
+$download = strtolower(trim((string)($_GET['download'] ?? '')));
+if (in_array($download, ['csv', 'pdf'], true)) {
+    $exportSql = "SELECT l.*, u.username, u.email, u.user_code
+        FROM wallet_ledger l
+        JOIN users u ON u.id=l.user_id
+        {$where}
+        ORDER BY l.id DESC";
+    $exportStmt = $pdo->prepare($exportSql);
+    $exportStmt->execute($params);
+    $exportRows = $exportStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if ($download === 'csv') {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=ledger_export.csv');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['Date', 'User Code', 'Username', 'Email', 'Entry Type', 'Delta', 'Balance After', 'Description', 'Ref Type', 'Ref ID']);
+        foreach ($exportRows as $row) {
+            fputcsv($out, [
+                $row['created_at'],
+                $row['user_code'],
+                $row['username'],
+                $row['email'],
+                $row['entry_type'],
+                number_format((float)$row['delta_amount'], 2),
+                number_format((float)$row['balance_after'], 2),
+                $row['description'],
+                $row['reference_type'],
+                $row['reference_id'],
+            ]);
+        }
+        fclose($out);
+        exit();
+    }
+
+    $escape = function ($text) {
+        $text = str_replace('\\', '\\\\', (string)$text);
+        $text = str_replace('(', '\\(', $text);
+        $text = str_replace(')', '\\)', $text);
+        return $text;
+    };
+
+    $lines = [];
+    $lines[] = 'Ledger Export';
+    $lines[] = '';
+    foreach ($exportRows as $row) {
+        $lines[] = sprintf(
+            '%s | %s | %s | %s | %s',
+            $row['created_at'],
+            $row['user_code'] ?: ('#' . $row['user_id']),
+            $row['entry_type'],
+            '$' . number_format((float)$row['delta_amount'], 2),
+            '$' . number_format((float)$row['balance_after'], 2)
+        );
+    }
+
+    $content = "BT\n/F1 11 Tf\n40 760 Td\n";
+    $leading = 14;
+    foreach ($lines as $i => $line) {
+        if ($i > 0) {
+            $content .= "0 -" . $leading . " Td\n";
+        }
+        $content .= "(" . $escape($line) . ") Tj\n";
+    }
+    $content .= "ET\n";
+
+    $objects = [];
+    $objects[] = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    $objects[] = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+    $objects[] = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n";
+    $objects[] = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+    $objects[] = "5 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n" . $content . "endstream\nendobj\n";
+
+    $pdf = "%PDF-1.4\n";
+    $offsets = [0];
+    foreach ($objects as $obj) {
+        $offsets[] = strlen($pdf);
+        $pdf .= $obj;
+    }
+    $xrefPos = strlen($pdf);
+    $pdf .= "xref\n0 " . count($offsets) . "\n";
+    $pdf .= "0000000000 65535 f \n";
+    for ($i = 1; $i < count($offsets); $i++) {
+        $pdf .= str_pad((string)$offsets[$i], 10, '0', STR_PAD_LEFT) . " 00000 n \n";
+    }
+    $pdf .= "trailer\n<< /Size " . count($offsets) . " /Root 1 0 R >>\n";
+    $pdf .= "startxref\n" . $xrefPos . "\n%%EOF";
+
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename=ledger_export.pdf');
+    echo $pdf;
+    exit();
+}
+
 $countSql = "SELECT COUNT(*) FROM wallet_ledger l JOIN users u ON u.id=l.user_id {$where}";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
@@ -286,6 +379,10 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <input type="text" name="entry_type" placeholder="entry_type" value="<?php echo htmlspecialchars($entry_type); ?>">
             <button type="submit">Filter</button>
         </form>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <a class="pager-btn" href="<?php echo htmlspecialchars(ledgerLink(['download' => 'csv', 'page' => null])); ?>">Download CSV</a>
+            <a class="pager-btn" href="<?php echo htmlspecialchars(ledgerLink(['download' => 'pdf', 'page' => null])); ?>">Download PDF</a>
+        </div>
     </div>
     <div class="table-wrap">
         <table>

@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = (int)$_SESSION['user_id'];
 ensureKycProfilesTable($pdo);
+ensureKycReviewHistoryTable($pdo);
 
 $message = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -54,6 +55,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $stmt = $pdo->prepare("SELECT * FROM kyc_profiles WHERE user_id = ? LIMIT 1");
 $stmt->execute([$user_id]);
 $kyc = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$historyStmt = $pdo->prepare(
+    "SELECT status, note, reviewed_at, reviewed_by
+     FROM kyc_review_history
+     WHERE user_id = ?
+     ORDER BY reviewed_at DESC
+     LIMIT 10"
+);
+$historyStmt->execute([$user_id]);
+$kyc_history = $historyStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!doctype html>
 <html lang="en">
@@ -161,6 +172,11 @@ $kyc = $stmt->fetch(PDO::FETCH_ASSOC);
             color: #166534;
             border-color: #86efac;
         }
+        .status-verified {
+            background: #dcfce7;
+            color: #166534;
+            border-color: #86efac;
+        }
         .status-pending {
             background: #fef3c7;
             color: #92400e;
@@ -225,6 +241,45 @@ $kyc = $stmt->fetch(PDO::FETCH_ASSOC);
         }
         .alert-success { background:#dcfce7; color:#166534; border-color:#86efac; }
         .alert-error { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .status-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: #475569;
+        }
+        .status-item strong { color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px; }
+        .history-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+        .history-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            background: #ffffff;
+            font-size: 12px;
+            color: #475569;
+        }
+        .history-item strong { color: #0f172a; font-size: 13px; }
+        .history-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            background: #f1f5f9;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+            margin-right: 6px;
+        }
         @media (max-width: 768px) {
             .main-header { height: auto; padding: 10px 12px; }
             .nav-container { gap: 8px; flex-wrap: wrap; }
@@ -252,14 +307,58 @@ $kyc = $stmt->fetch(PDO::FETCH_ASSOC);
         <?php $kyc_status = strtolower((string)($kyc['status'] ?? 'not_submitted')); ?>
         <div class="status-wrap">
             <div>Status:
-                <span class="status-badge <?php echo $kyc_status === 'approved' ? 'status-approved' : ($kyc_status === 'pending' ? 'status-pending' : ($kyc_status === 'rejected' ? 'status-rejected' : '')); ?>">
+                <span class="status-badge <?php echo ($kyc_status === 'verified' || $kyc_status === 'approved') ? 'status-verified' : ($kyc_status === 'pending' ? 'status-pending' : ($kyc_status === 'rejected' ? 'status-rejected' : '')); ?>">
                     <?php echo htmlspecialchars(strtoupper((string)($kyc['status'] ?? 'not_submitted'))); ?>
                 </span>
+            </div>
+        </div>
+        <div class="status-grid">
+            <div class="status-item">
+                <strong>Upload Status</strong>
+                <?php if (!empty($kyc['created_at'])): ?>
+                    Submitted on <?php echo htmlspecialchars(date('M d, Y H:i', strtotime((string)$kyc['created_at']))); ?>
+                <?php else: ?>
+                    Not submitted
+                <?php endif; ?>
+            </div>
+            <div class="status-item">
+                <strong>Review Status</strong>
+                <?php if (!empty($kyc['reviewed_at'])): ?>
+                    Reviewed on <?php echo htmlspecialchars(date('M d, Y H:i', strtotime((string)$kyc['reviewed_at']))); ?>
+                <?php else: ?>
+                    Waiting for review
+                <?php endif; ?>
+            </div>
+            <div class="status-item">
+                <strong>Document Reference</strong>
+                <?php if (!empty($kyc['document_ref'])): ?>
+                    Provided
+                <?php else: ?>
+                    Not provided
+                <?php endif; ?>
             </div>
         </div>
         <?php if (!empty($kyc['review_note'])): ?>
             <div class="status-wrap">Review Note: <?php echo htmlspecialchars((string)$kyc['review_note']); ?></div>
         <?php endif; ?>
+        <div class="status-wrap">
+            <strong>Review History</strong>
+            <?php if (!empty($kyc_history)): ?>
+                <ul class="history-list">
+                    <?php foreach ($kyc_history as $h): ?>
+                        <li class="history-item">
+                            <span class="history-badge"><?php echo htmlspecialchars(strtoupper((string)$h['status'])); ?></span>
+                            <strong><?php echo htmlspecialchars(date('M d, Y H:i', strtotime((string)$h['reviewed_at']))); ?></strong>
+                            <?php if (!empty($h['note'])): ?>
+                                <div>Reason: <?php echo htmlspecialchars((string)$h['note']); ?></div>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php else: ?>
+                <div style="margin-top:6px;">No review history yet.</div>
+            <?php endif; ?>
+        </div>
         <form method="post">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken()); ?>">
             <div class="grid">
